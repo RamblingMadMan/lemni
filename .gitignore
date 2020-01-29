@@ -1,0 +1,47 @@
+# Build directories
+build
+cmake-build-*
+
+# Desktop/IDE related files
+CMakeLists.txt.user
+*.backup
+.vs
+.directory
+*.autosave
+*.kdev4
+**/*.autosave
+**/*.kdev4
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+ 
