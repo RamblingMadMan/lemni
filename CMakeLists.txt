@@ -26,9 +26,9 @@ set(
 
 include_directories(include)
 
-set(UTF8_TESTS OFF)
-set(UTF8_INSTALL OFF)
-set(UTF8_SAMPLES OFF)
+set(UTF8_TESTS OFF CACHE BOOL "" FORCE)
+set(UTF8_INSTALL OFF CACHE BOOL "" FORCE)
+set(UTF8_SAMPLES OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(deps/utfcpp)
 
