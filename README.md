@@ -1,5 +1,7 @@
 # The Lemni Programming Language
 
+[![Build Status](https://travis-ci.org/RamblingMadMan/lemni.svg?branch=master)](https://travis-ci.org/RamblingMadMan/lemni)
+
 Lemni is a functional programming language I created for the hell of it. It is designed with the intent of being referentially transparent while still being able to use (some) procedural techniques.
 
 ## Library
