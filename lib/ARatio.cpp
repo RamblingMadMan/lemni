@@ -20,6 +20,7 @@
 #include <new>
 #include <memory>
 
+#define LEMNI_NO_CPP
 #include "AInt.hpp"
 #include "ARatio.hpp"
 

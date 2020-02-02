@@ -1,0 +1,18 @@
+dist: bionic
+
+language: cpp
+compiler: gcc
+
+addons:
+  apt:
+    packages:
+      - cmake-data
+      - cmake
+      - libgmp-dev
+      - libmpfr-dev
+      - libicu-dev
+
+script:
+  - mkdir build && cd build
+  - cmake .. -DCMAKE_BUILD_TYPE=Debug
+  - cmake . --build -- -j 4

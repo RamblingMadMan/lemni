@@ -23,6 +23,9 @@
 #include <map>
 #include <algorithm>
 
+#include "lemni/Str.h"
+
+#define LEMNI_NO_CPP
 #include "lemni/Type.h"
 
 struct LemniTypeT{
@@ -228,7 +231,7 @@ struct LemniTypeSetT{
 	std::map<std::vector<LemniRecordTypeField>, std::unique_ptr<LemniRecordTypeT>> recordTys;
 };
 
-LemniTypeSet lemniCreateTypeSet(){
+LemniTypeSet lemniCreateTypeSet(void){
 	auto mem = std::malloc(sizeof(LemniTypeSetT));
 	auto p = new(mem) LemniTypeSetT;
 	return p;

@@ -18,6 +18,7 @@
 
 #include <map>
 
+#define LEMNI_NO_CPP
 #include "lemni/Operator.h"
 
 LemniUnaryOp lemniUnaryOpFromStr(LemniStr str){

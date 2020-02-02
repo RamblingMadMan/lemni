@@ -20,16 +20,34 @@
 #define LEMNI_LIB_EXPR_HPP 1
 
 #include <vector>
+#include <string>
 
 #include "lemni/Expr.h"
 
 struct LemniExprT{
 	virtual ~LemniExprT() = default;
-	virtual LemniStr toStr() const noexcept = 0;
+	//virtual LemniStr toStr() const noexcept = 0;
+};
+
+struct LemniRefExprT: LemniExprT{
+	explicit LemniRefExprT(std::string id_)
+		: id(std::move(id_)){}
+
+	std::string id;
+};
+
+struct LemniApplicationExprT: LemniExprT{
+	LemniApplicationExprT(LemniExpr fn_, std::vector<LemniExpr> args_)
+		: fn(fn_), args(std::move(args_)){}
+
+	LemniExpr fn;
+	std::vector<LemniExpr> args;
 };
 
 struct LemniLiteralExprT: LemniExprT{};
 struct LemniConstantExprT: LemniLiteralExprT{};
+
+struct LemniUnitExprT: LemniConstantExprT{};
 
 struct LemniNumExprT: LemniConstantExprT{};
 
@@ -83,9 +101,22 @@ struct LemniBinaryOpExprT: LemniExprT{
 	LemniExpr lhs, rhs;
 };
 
-struct LemniFnDefExprT: LemniExprT{};
+struct LemniFnDefExprT: LemniExprT{
+	LemniFnDefExprT(std::string name_, std::vector<LemniExpr> params_, LemniExpr body_)
+		: name(std::move(name_)), params(std::move(params_)), body(body_){}
 
-struct LemniLambdaExprT: LemniExprT{};
+	std::string name;
+	std::vector<LemniExpr> params;
+	LemniExpr body;
+};
+
+struct LemniLambdaExprT: LemniExprT{
+	LemniLambdaExprT(std::vector<LemniExpr> params_, LemniExpr body_)
+		: params(std::move(params_)), body(body_){}
+
+	std::vector<LemniExpr> params;
+	LemniExpr body;
+};
 
 struct LemniBlockExprT: LemniExprT{
 	explicit LemniBlockExprT(std::vector<LemniExpr> exprs_)

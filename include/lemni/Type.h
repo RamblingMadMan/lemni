@@ -27,7 +27,10 @@ extern "C" {
 
 #include <stdint.h>
 
-typedef struct LemniTypeSetT *LemniTypeSet;
+/**
+ * @defgroup Types Type checking related types and functions.
+ * @{
+ */
 
 typedef const struct LemniTypeT *LemniType;
 
@@ -126,8 +129,28 @@ LemniTopType lemniRecordTypeBase(LemniRecordType record);
 uint32_t lemniRecordTypeNumFields(LemniRecordType record);
 const LemniRecordTypeField *lemniRecordTypeField(LemniRecordType record, const uint32_t idx);
 
-LemniTypeSet lemniCreateTypeSet();
+/**
+ * @defgroup TypeSet Types and functions for containing a set of types.
+ * @{
+ */
 
+/**
+ * @brief Opaque type representing a set of types.
+ */
+typedef struct LemniTypeSetT *LemniTypeSet;
+
+/**
+ * @brief Create a new set of types.
+ * @note The result must be destroyed with \ref lemniDestroyTypeSet .
+ * @returns newly created type set
+ */
+LemniTypeSet lemniCreateTypeSet(void);
+
+/**
+ * @brief Destroy a type set previously created with \ref lemniCreateTypeSet .
+ * @warning ``NULL`` must not be passed to this function.
+ * @param types the type set to destroy
+ */
 void lemniDestroyTypeSet(LemniTypeSet types);
 
 LemniTopType lemniTypeSetGetTop(LemniTypeSet types);
@@ -150,6 +173,14 @@ LemniSumType lemniTypeSetGetSum(LemniTypeSet types, LemniType *const cases, uint
 LemniProductType lemniTypeSetGetProduct(LemniTypeSet types, LemniType *const components, uint32_t numComponents);
 
 LemniRecordType lemniTypeSetGetRecord(LemniTypeSet types, const LemniRecordTypeField *const fields, uint32_t numFields);
+
+/**
+ * @}
+ */
+
+/**
+ * @}
+ */
 
 #ifdef __cplusplus
 }

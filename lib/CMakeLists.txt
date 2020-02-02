@@ -13,6 +13,7 @@ set(
 	AReal.cpp
 	Operator.cpp
 	Expr.hpp
+	Expr.cpp
 	parse.cpp
 	Type.cpp
 )

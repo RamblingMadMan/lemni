@@ -26,6 +26,9 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Type representing the type of token.
+ */
 typedef enum {
 	LEMNI_TOKEN_SPACE,
 	LEMNI_TOKEN_NEWLINE,
@@ -45,6 +48,9 @@ typedef enum {
 	LEMNI_TOKEN_TYPE_COUNT
 } LemniTokenType;
 
+/**
+ * Type representing a single token.
+ */
 typedef struct {
 	LemniTokenType type;
 	LemniStr text;

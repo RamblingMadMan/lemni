@@ -27,17 +27,34 @@ extern "C" {
 #include <string.h>
 #include <stdint.h>
 
+/**
+ * @brief Type representing a non-owning view of a string.
+ */
 typedef struct {
 	const char *ptr;
 	size_t len;
 } LemniStr;
 
+/**
+ * @brief Create a ``LemniStr`` from a constexpr string.
+ */
 #define LEMNICSTR(str) ((LemniStr){ .ptr = str, .len = sizeof(str)-1 })
 
+/**
+ * @brief Create a ``LemniStr`` from a null-termniated string.
+ * @param str the string to view
+ * @returns newly created ``LemniStr``
+ */
 inline LemniStr lemniStrFrom(const char *str){
 	return { .ptr = str, .len = strlen(str) };
 }
 
+/**
+ * @brief 3-way comparison of 2 ``LemniStr``s.
+ * @param lhs the left hand side of the comparison
+ * @param rhs the right hand side of the comparison
+ * @returns 0 if equal, < 0 if less than, > 0 if greater than
+ */
 inline int lemniStrCmp(LemniStr lhs, LemniStr rhs){
 	if(lhs.len < rhs.len) return INT32_MIN;
 	else if(lhs.len > rhs.len) return INT32_MAX;

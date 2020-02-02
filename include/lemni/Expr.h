@@ -27,10 +27,21 @@
 extern "C" {
 #endif
 
+/**
+ * @defgroup Exprs Expression related types and functions.
+ * @{
+ */
+
 typedef const struct LemniExprT *LemniExpr;
+
+typedef const struct LemniRefExprT *LemniRefExpr;
+
+typedef const struct LemniApplicationExprT *LemniApplicationExpr;
 
 typedef const struct LemniLiteralExprT *LemniLiteralExpr;
 typedef const struct LemniConstantExprT *LemniConstantExpr;
+
+typedef const struct LemniUnitExprT *LemniUnitExpr;
 
 typedef const struct LemniNumExprT *LemniNumExpr;
 typedef const struct LemniRealExprT *LemniRealExpr;
@@ -50,11 +61,24 @@ typedef const struct LemniReturnExprT *LemniReturnExpr;
 
 LemniStr lemniExprStr(LemniExpr expr);
 
+LemniRefExpr lemniExprAsRef(LemniExpr expr);
+LemniExpr lemniRefExprBase(LemniRefExpr ref);
+LemniStr lemniRefExprId(LemniRefExpr ref);
+
+LemniApplicationExpr lemniExprAsApplication(LemniExpr expr);
+LemniExpr lemniApplicationExprBase(LemniApplicationExpr app);
+LemniExpr lemniApplicationExprFn(LemniApplicationExpr app);
+uint32_t LemniApplicationExprNumArgs(LemniApplicationExpr app);
+LemniExpr LemniApplicationExprArg(LemniApplicationExpr app, const uint32_t idx);
+
 LemniLiteralExpr lemniExprAsLiteral(LemniExpr expr);
 LemniExpr lemniLiteralExprBase(LemniLiteralExpr lit);
 
 LemniConstantExpr lemniLiteralExprAsConstant(LemniLiteralExpr lit);
 LemniLiteralExpr lemniConstantExprBase(LemniConstantExpr constant);
+
+LemniUnitExpr LemniConstantExprAsUnit(LemniConstantExpr constant);
+LemniExpr lemniUnitExprBase(LemniUnitExpr unit);
 
 LemniNumExpr lemniConstantExprAsNum(LemniConstantExpr constant);
 LemniConstantExpr lemniNumExprBase(LemniNumExpr num);
@@ -108,8 +132,45 @@ LemniReturnExpr lemniExprAsReturn(LemniExpr expr);
 LemniExpr lemniReturnExprBase(LemniReturnExpr return_);
 LemniExpr lemniReturnExprValue(LemniReturnExpr return_);
 
+/**
+ * @}
+ */
+
 #ifdef __cplusplus
 }
-#endif
+
+#ifndef LEMNI_NO_CPP
+#define LEMNI_ALIAS_FN(name, alias) inline constexpr auto &&alias = name
+
+namespace lemni{
+	LEMNI_ALIAS_FN(lemniExprAsRef, exprAsRef);
+	LEMNI_ALIAS_FN(lemniRefExprBase, refExprBase);
+	LEMNI_ALIAS_FN(lemniRefExprId, refExprId);
+
+	LEMNI_ALIAS_FN(lemniExprAsLiteral, exprAsLiteral);
+	LEMNI_ALIAS_FN(lemniLiteralExprBase, literalExprBase);
+
+	LEMNI_ALIAS_FN(lemniLiteralExprAsConstant, literalExprAsConstant);
+	LEMNI_ALIAS_FN(lemniConstantExprBase, constantExprBase);
+
+	LEMNI_ALIAS_FN(lemniConstantExprAsNum, constantExprAsNum);
+	LEMNI_ALIAS_FN(lemniNumExprBase, numExprBase);
+
+	LEMNI_ALIAS_FN(lemniNumExprAsReal, numExprAsReal);
+	LEMNI_ALIAS_FN(lemniRealExprBase, realExprBase);
+	LEMNI_ALIAS_FN(lemniRealExprValue, realExprValue);
+
+	LEMNI_ALIAS_FN(lemniNumExprAsRatio, numExprAsRatio);
+	LEMNI_ALIAS_FN(lemniRatioExprBase, ratioExprBase);
+	LEMNI_ALIAS_FN(lemniRatioExprValue, ratioExprValue);
+
+	LEMNI_ALIAS_FN(lemniNumExprAsInt, numExprAsInt);
+	LEMNI_ALIAS_FN(lemniIntExprBase, intExprBase);
+	LEMNI_ALIAS_FN(lemniIntExprValue, intExprValue);
+}
+
+#undef LEMNI_ALIAS_FN
+#endif // !LEMNI_NO_CPP
+#endif // __cplusplus
 
 #endif // !LEMNI_EXPR_H

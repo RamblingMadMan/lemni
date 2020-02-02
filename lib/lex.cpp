@@ -29,6 +29,7 @@
 
 #include "utf8.h"
 
+#define LEMNI_NO_CPP
 #include "lemni/lex.h"
 
 struct LemniLexStateT{

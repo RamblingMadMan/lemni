@@ -20,6 +20,7 @@
 #include <new>
 #include <memory>
 
+#define LEMNI_NO_CPP
 #include "AInt.hpp"
 
 namespace {
@@ -35,6 +36,12 @@ LemniAInt lemniCreateAInt(void){
 	return p;
 }
 
+LemniAInt lemniCreateAIntCopy(LemniAIntConst other){
+	auto p = createAInt();
+	mpz_init_set(p->val, other->val);
+	return p;
+}
+
 LemniAInt lemniCreateAIntStr(LemniStr str, const int base){
 	auto p = createAInt();
 	std::string cstr(str.ptr, str.len);
@@ -42,15 +49,15 @@ LemniAInt lemniCreateAIntStr(LemniStr str, const int base){
 	return p;
 }
 
-LemniAInt lemniCreateAIntLong(const long val){
+LemniAInt lemniCreateAIntLong(const long si){
 	auto p = createAInt();
-	mpz_init_set_si(p->val, val);
+	mpz_init_set_si(p->val, si);
 	return p;
 }
 
-LemniAInt lemniCreateAIntULong(const unsigned long val){
+LemniAInt lemniCreateAIntULong(const unsigned long ui){
 	auto p = createAInt();
-	mpz_init_set_ui(p->val, val);
+	mpz_init_set_ui(p->val, ui);
 	return p;
 }
 
@@ -58,6 +65,23 @@ void lemniDestroyAInt(LemniAInt aint){
 	mpz_clear(aint->val);
 	std::destroy_at(aint);
 	std::free(aint);
+}
+
+void lemniAIntSet(LemniAInt aint, LemniAIntConst other){
+	mpz_set(aint->val, other->val);
+}
+
+void lemniAIntSetStr(LemniAInt aint, LemniStr str, const int base){
+	std::string cstr(str.ptr, str.len);
+	mpz_set_str(aint->val, cstr.c_str(), base);
+}
+
+void lemniAIntSetLong(LemniAInt aint, const long si){
+	mpz_set_si(aint->val, si);
+}
+
+void lemniAIntSetULong(LemniAInt aint, const unsigned long ui){
+	mpz_set_ui(aint->val, ui);
 }
 
 void lemniAIntAdd(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs){

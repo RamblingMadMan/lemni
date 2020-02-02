@@ -27,13 +27,25 @@ extern "C" {
 
 #include <stdint.h>
 
+/**
+ * @defgroup Operators Types and functions related to unary and binary operators.
+ * @{
+ */
+
+/**
+ * @brief Type representing a unary operator.
+ */
 typedef enum {
 	LEMNI_UNARY_NEG,
 	LEMNI_UNARY_NOT,
 
-	LEMNI_UNARY_OP_COUNT
+	LEMNI_UNARY_OP_COUNT,
+	LEMNI_UNARY_OP_UNRECOGNIZED = LEMNI_UNARY_OP_COUNT
 } LemniUnaryOp;
 
+/**
+ * @brief Type representing a binary operator.
+ */
 typedef enum {
 	LEMNI_BINARY_ADD,
 	LEMNI_BINARY_SUB,
@@ -52,13 +64,34 @@ typedef enum {
 	LEMNI_BINARY_GT,
 	LEMNI_BINARY_GTEQ,
 
-	LEMNI_BINARY_OP_COUNT
+	LEMNI_BINARY_OP_COUNT,
+	LEMNI_BINARY_OP_UNRECOGNIZED = LEMNI_BINARY_OP_COUNT
 } LemniBinaryOp;
 
+/**
+ * @brief Get the unary operator represented by \p str .
+ * @param str the string to check
+ * @returns the unary operator represented by \p str or ``LEMNI_UNARY_OP_UNRECOGNIZED``.
+ */
 LemniUnaryOp lemniUnaryOpFromStr(LemniStr str);
+
+/**
+ * @brief Get the binary operator represented by \p str .
+ * @param str the string to check
+ * @returns the binary operator represented by \p str or ``LEMNI_BINARY_OP_UNRECOGNIZED``.
+ */
 LemniBinaryOp lemniBinaryOpFromStr(LemniStr str);
 
+/**
+ * @brief Get the precedence of \p op .
+ * @param op the operator to check
+ * @returns the precedence of \p op or ``UINT32_MAX`` if not recognized.
+ */
 uint32_t lemniBinaryOpPrecedence(LemniBinaryOp op);
+
+/**
+ * @}
+ */
 
 #ifdef __cplusplus
 }
