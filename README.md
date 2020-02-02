@@ -29,7 +29,7 @@ cmake --build . -- -j4
 ## Lemni Example
 
 ```
-IO   = import "IO"
+IO    = import "IO"
 Chars = import "Chars"
 
 prompt(msg) =
@@ -47,8 +47,15 @@ stripLeadingWs(name) =
 	
 	res
 
+stripTrailingWs(name) =
+	if Chars.isSpace (last name) do
+		stripTrailingWs (init name)
+	else
+		name
+
 main() =
 	name = prompt "What's your name? "
+	name = stripTrailingWs name
 	name = stripLeadingWs name
 	name = capitalize name
 	IO.outln ("Hello, " ++ name ++ "!")
