@@ -6,92 +6,25 @@ Lemni is a functional programming language I created for the hell of it. It is d
 
 ## Library
 
-The library for lexing, parsing, evaluating and compiling lemni source code has a C API with C++ wrappers and is implemented in C++.
+Included is a library for lexing, parsing, evaluating and compiling lemni source code. It has a C11 API with C++17 wrappers. It is implemented in C++17.
 
-An example of lexing and parsing:
+For an example of lexing and parsing take a look at `testall/main.cpp`.
 
-```
-#include <vector>
-
-#include "lemni/lex.h"
-#include "lemni/parse.h"
-
-template<typename ... Fns> struct Overloaded: Fns...{ using Fns::operator()...; };
-template<typename ... Fns> Overloaded(Fns...) -> Overloaded<Fns...>;
-
-std::vector<lemni::Token> lexAll(std::string_view src){
-	lemni::LexState state(src);
-	
-	std::vector<lemni::Token> tokens;
-	
-	while(1){=
-		bool doBreak = false;
-		
-		if(std::visit(
-			Overloaded{
-				[](const lemni::LexError &err){
-					/* error */
-					return true;
-				},
-				[&](const lemni::Token &tok){
-					/* lexed a token */
-					if(tok.type == LEMNI_TOKEN_EOF)
-						return true;
-					else
-						tokens.emplace_back(tok);
-					
-					return false;
-				}
-			},
-			lemni::lex(state)
-		))
-			break;
-	}
-	
-	return tokens;
-}
-
-int main(int argc, char *argv[]){
-	const char src[] = "hello world";
-
-	auto tokens = lexAll(src);
-	
-	lemni::ParseState state(tokens.data(), tokens.size());
-	
-	while(1){
-		if(std::visit(
-			Overloaded{
-				[](const lemni::ParseError &err){
-					/* error */
-					return true;
-				},
-				[](lemni::Expr expr){
-					/* parsed an expression */
-					if(!expr){
-						// null expr signifies end of tokens
-						return true;
-					}
-					else{
-						// do something with the expression
-					}
-					
-					return false;
-				}
-			},
-			lemni::parse(state)
-		))
-			break;
-	}
-
-	return 0;
-}
-```
-
-## Dependencies
+### Dependencies
 
 - ICU4C
 - GNU MP
 - GNU MPFR
+
+### Building
+
+Taking for granted a bash-like shell, from the source dir run the following:
+
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+cmake --build . -- -j4
+```
 
 ## Lemni Example
 
