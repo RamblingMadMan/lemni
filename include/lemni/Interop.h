@@ -87,6 +87,8 @@ namespace lemni::interop{
 	using Real32 = LemniReal32;
 	using Real64 = LemniReal64;
 
+	using Str = LemniStr;
+
 	static inline Unit unit;
 }
 #endif // !LEMNI_NO_CPP

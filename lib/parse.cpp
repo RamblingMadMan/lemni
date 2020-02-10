@@ -353,6 +353,7 @@ namespace {
 		return std::make_pair(makeResult(app), delimIt);
 	}
 
+	// starts on ',' token
 	std::pair<LemniParseResult, const LemniToken*> parseCommaList(LemniParseState state, const LemniToken *it, const LemniToken *const end, LemniExpr head){
 		std::vector<LemniExpr> elems{head};
 

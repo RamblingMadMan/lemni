@@ -268,6 +268,12 @@ namespace lemni{
 			static LemniType getBare(LemniTypeSet types) noexcept{ auto t = get(types); return lemniRealAsType(t); }
 		};
 
+		template<>
+		struct CTypeGetter<interop::Str>{
+			static LemniStringType get(LemniTypeSet types) noexcept{ return lemniTypeSetGetString(types); }
+			static LemniType getBare(LemniTypeSet types) noexcept{ auto t = get(types); return lemniStringAsType(t); }
+		};
+
 		template<typename Ret, typename ... Params>
 		struct CTypeGetter<Ret(Params...)>{
 			static LemniFunctionType get(LemniTypeSet types) noexcept{
