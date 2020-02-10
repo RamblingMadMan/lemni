@@ -117,10 +117,10 @@ namespace lemni{
 		private:
 			LemniParseState m_state;
 
-			friend std::variant<Expr, ParseError> parse(ParseState &state);
+			friend std::variant<Expr, ParseError> parse(ParseState &state) noexcept;
 	};
 
-	inline std::variant<Expr, ParseError> parse(ParseState &state){
+	inline std::variant<Expr, ParseError> parse(ParseState &state) noexcept{
 		auto res = lemniParse(state.m_state);
 		if(res.hasError) return res.error;
 		else return res.expr;

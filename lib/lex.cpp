@@ -22,6 +22,7 @@
 #include <vector>
 #include <queue>
 #include <iostream>
+#include <sstream>
 
 #define U_CHARSET_IS_UTF8 1
 #include "unicode/uchar.h"
@@ -104,8 +105,13 @@ namespace {
 		state->onNewLine = false;
 
 		auto strLen = static_cast<size_t>(std::distance(beg, it));
+		auto str = LemniStr{.ptr = beg, .len = strLen};
 
-		return makeResult(LemniToken{.type = LEMNI_TOKEN_REAL, .text = LemniStr{.ptr = beg, .len = strLen}, .loc = loc});
+		if((str.ptr[0] == '0') && (str.ptr[1] != '.')){
+			return makeError(state, loc, "Only decimal (base 10) real literals currently supported");
+		}
+
+		return makeResult(LemniToken{ .type = LEMNI_TOKEN_REAL, .text = str, .loc = loc });
 	}
 
 	LemniLexResult lexInt(LemniLexState state, LemniLocation loc, const char *const beg, const char *it, const char *const end){
@@ -134,8 +140,31 @@ namespace {
 		state->onNewLine = false;
 
 		auto strLen = static_cast<size_t>(std::distance(beg, it));
+		auto str = LemniStr{.ptr = beg, .len = strLen};
 
-		return makeResult(LemniToken{.type = LEMNI_TOKEN_INT, .text = LemniStr{.ptr = beg, .len = strLen}, .loc = loc});
+		if(str.ptr[0] == '0'){
+			auto baseSig = str.ptr[1];
+
+			switch(baseSig){
+				case 'b':
+				case 'B':
+				case 'c':
+				case 'C':
+				case 'x':
+				case 'X':
+					break;
+
+				default:{
+					auto cp = utf8::peek_next(str.ptr + 1, str.ptr + str.len);
+					std::string errStr = "Invalid integer base '0";
+					utf8::append(cp, std::back_inserter(errStr));
+					errStr += "'";
+					return makeError(state, loc, std::move(errStr));
+				}
+			}
+		}
+
+		return makeResult(LemniToken{.type = LEMNI_TOKEN_INT, .text = str, .loc = loc});
 	}
 }
 
@@ -467,14 +496,65 @@ LemniLexResult lemniLex(LemniLexState state){
 				.loc = opLoc
 			});
 	}
-	/*
-	// string
-	else if(u_hasBinaryProperty(cp, UCHAR_QUOTATION_MARK)){
+	else if(u_hasBinaryProperty(cp, UCHAR_QUOTATION_MARK)){ // string
+		UChar32 mirrored = u_charMirror(cp);
 
+		auto litLoc = state->loc;
+		auto litStrBeg = it;
+
+		utf8::advance(it, 1, end);
+
+		++state->loc.col;
+
+		while(1){
+			cp = utf8::peek_next(it, end);
+
+			if(cp == '\\'){
+				++state->loc.col;
+				utf8::advance(it, 1, end);
+
+				if(it == end)
+					return makeError(state, state->loc, "Unexpected end of source in string literal");
+
+				++state->loc.col;
+				utf8::advance(it, 1, end);
+
+				if(it == end)
+					return makeError(state, state->loc, "Unexpected end of source in string literal");
+
+				cp = utf8::peek_next(it, end);
+			}
+
+			if(cp == static_cast<uint32_t>(mirrored)){
+				++state->loc.col;
+				utf8::advance(it, 1, end);
+				break;
+			}
+
+			++state->loc.col;
+			utf8::advance(it, 1, end);
+
+			if(it == end)
+				return makeError(state, state->loc, "Unexpected end of source in string literal");
+		}
+
+		auto remLen = std::distance(it, end);
+		state->remainder.ptr = it;
+		state->remainder.len = static_cast<size_t>(remLen);
+
+		state->onNewLine = false;
+
+		auto litStrLen = static_cast<size_t>(std::distance(litStrBeg, it));
+
+		return makeResult(
+			LemniToken{
+				.type = LEMNI_TOKEN_STR,
+				.text = LemniStr{ .ptr = litStrBeg, .len = litStrLen },
+				.loc = litLoc
+			});
 	}
-	*/
 	else if(u_iscntrl(cp)){
-		return makeError(state, state->loc, "utf8 control character encountered");
+		return makeError(state, state->loc, "UTF-8 control character encountered");
 	}
 	else{
 		return makeError(state, state->loc, "Invalid utf8 character");

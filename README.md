@@ -34,7 +34,7 @@ Chars = import "Chars"
 
 prompt(msg) =
 	IO.out msg
-	IO.in
+	IO.in ()
 
 capitalize(name) =
 	(Chars.toUpper (head name)) ++ (tail name)

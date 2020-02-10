@@ -50,6 +50,7 @@ typedef const struct LemniIntExprT *LemniIntExpr;
 
 typedef const struct LemniStrExprT *LemniStrExpr;
 
+typedef const struct LemniCommaListExprT *LemniCommaListExpr;
 typedef const struct LemniUnaryOpExprT *LemniUnaryOpExpr;
 typedef const struct LemniBinaryOpExprT *LemniBinaryOpExpr;
 
@@ -68,8 +69,8 @@ LemniStr lemniRefExprId(LemniRefExpr ref);
 LemniApplicationExpr lemniExprAsApplication(LemniExpr expr);
 LemniExpr lemniApplicationExprBase(LemniApplicationExpr app);
 LemniExpr lemniApplicationExprFn(LemniApplicationExpr app);
-uint32_t LemniApplicationExprNumArgs(LemniApplicationExpr app);
-LemniExpr LemniApplicationExprArg(LemniApplicationExpr app, const uint32_t idx);
+uint32_t lemniApplicationExprNumArgs(LemniApplicationExpr app);
+LemniExpr lemniApplicationExprArg(LemniApplicationExpr app, const uint32_t idx);
 
 LemniLiteralExpr lemniExprAsLiteral(LemniExpr expr);
 LemniExpr lemniLiteralExprBase(LemniLiteralExpr lit);
@@ -98,6 +99,11 @@ LemniAIntConst lemniIntExprValue(LemniIntExpr int_);
 LemniStrExpr lemniConstantExprAsStr(LemniConstantExpr constant);
 LemniConstantExpr lemniStrExprBase(LemniStrExpr str);
 LemniStr lemniStrExprValue(LemniStrExpr str);
+
+LemniCommaListExpr lemniExprAsCommaList(LemniExpr expr);
+LemniExpr lemniCommaListExprBase(LemniCommaListExpr list);
+uint32_t lemniCommaListExprNumElements(LemniCommaListExpr list);
+LemniExpr lemniCommaListExprElement(LemniCommaListExpr list, const uint32_t idx);
 
 LemniUnaryOpExpr lemniExprAsUnaryOp(LemniExpr expr);
 LemniExpr lemniUnaryOpExprBase(LemniUnaryOpExpr unaryOp);
@@ -167,6 +173,48 @@ namespace lemni{
 	LEMNI_ALIAS_FN(lemniNumExprAsInt, numExprAsInt);
 	LEMNI_ALIAS_FN(lemniIntExprBase, intExprBase);
 	LEMNI_ALIAS_FN(lemniIntExprValue, intExprValue);
+
+	LEMNI_ALIAS_FN(lemniConstantExprAsStr, constantExprAsStr);
+	LEMNI_ALIAS_FN(lemniStrExprBase, strExprBase);
+	LEMNI_ALIAS_FN(lemniStrExprValue, strExprValue);
+
+	LEMNI_ALIAS_FN(lemniExprAsCommaList, exprAsCommaList);
+	LEMNI_ALIAS_FN(lemniCommaListExprBase, commaListExprBase);
+	LEMNI_ALIAS_FN(lemniCommaListExprNumElements, commaListExprNumElements);
+	LEMNI_ALIAS_FN(lemniCommaListExprElement, commaListExprElement);
+
+	LEMNI_ALIAS_FN(lemniExprAsUnaryOp, exprAsUnaryOp);
+	LEMNI_ALIAS_FN(lemniUnaryOpExprBase, unaryOpExprBase);
+	LEMNI_ALIAS_FN(lemniUnaryOpExprOp, unaryOpExprOp);
+	LEMNI_ALIAS_FN(lemniUnaryOpExprValue, unaryOpExprValue);
+
+	LEMNI_ALIAS_FN(lemniExprAsBinaryOp, exprAsBinaryOp);
+	LEMNI_ALIAS_FN(lemniBinaryOpExprBase, binaryOpExprBase);
+	LEMNI_ALIAS_FN(lemniBinaryOpExprOp, binaryOpExprOp);
+	LEMNI_ALIAS_FN(lemniBinaryOpExprLhs, binaryOpExprLhs);
+	LEMNI_ALIAS_FN(lemniBinaryOpExprRhs, binaryOpExprRhs);
+
+	LEMNI_ALIAS_FN(lemniExprAsFnDef, exprAsFnDef);
+	LEMNI_ALIAS_FN(lemniFnDefExprBase, fnDefExprBase);
+	LEMNI_ALIAS_FN(lemniFnDefExprName, fnDefExprName);
+	LEMNI_ALIAS_FN(lemniFnDefExprNumParams, fnDefExprNumParams);
+	LEMNI_ALIAS_FN(lemniFnDefExprParam, fnDefExprParam);
+	LEMNI_ALIAS_FN(lemniFnDefExprBody, fnDefExprBody);
+
+	LEMNI_ALIAS_FN(lemniExprAsLambda, exprAsLambda);
+	LEMNI_ALIAS_FN(lemniLambdaExprBase, lambdaExprBase);
+	LEMNI_ALIAS_FN(lemniLambdaExprNumParams, lambdaExprNumParams);
+	LEMNI_ALIAS_FN(lemniLambdaExprParam, lambdaExprParam);
+	LEMNI_ALIAS_FN(lemniLambdaExprBody, lambdaExprBody);
+
+	LEMNI_ALIAS_FN(lemniExprAsBlock, exprAsBlock);
+	LEMNI_ALIAS_FN(lemniBlockExprBase, blockExprBase);
+	LEMNI_ALIAS_FN(lemniBlockExprNumExprs, blockExprNumExprs);
+	LEMNI_ALIAS_FN(lemniBlockExprExpr, blockExprExpr);
+
+	LEMNI_ALIAS_FN(lemniExprAsReturn, exprAsReturn);
+	LEMNI_ALIAS_FN(lemniReturnExprBase, returnExprBase);
+	LEMNI_ALIAS_FN(lemniReturnExprValue, returnExprValue);
 }
 
 #undef LEMNI_ALIAS_FN

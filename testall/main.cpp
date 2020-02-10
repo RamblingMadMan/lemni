@@ -1,11 +1,12 @@
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 #include "lemni/lex.h"
 #include "lemni/parse.h"
 
 constexpr char testStr[] =
-R"(add 1 2.0
+R"(f(x) = 2 * x
 World
 )";
 
@@ -13,33 +14,26 @@ template<typename ... Fns> struct Overloaded: Fns...{ using Fns::operator()...; 
 template<typename ... Fns> Overloaded(Fns...) -> Overloaded<Fns...>;
 
 std::vector<lemni::Token> lexAll(std::string_view src){
-	lemni::LexState state(src);
+	auto res = lemni::lexAll(src);
+	if(auto err = std::get_if<lemni::LexError>(&res)){
+		std::ostringstream ss;
+		ss << "Lexing error[" << err->loc.line << '.' << err->loc.col << "]: " << err->msg << '\n';
+		throw std::runtime_error(ss.str());
+	}
+	else{
+		return std::get<std::vector<lemni::Token>>(res);
+	}
+}
 
-	std::vector<lemni::Token> tokens;
+bool handleExpr(lemni::Expr expr){
+	if(!expr) return true;
 
-	while(1){
-		if(std::visit(
-			Overloaded{
-				[](const lemni::LexError &err){
-					std::cerr << "Lexing error: " << err.msg << '\n';
-					return true;
-				},
-				[&](const lemni::Token &tok){
-					if(tok.type == LEMNI_TOKEN_EOF)
-						return true;
-					else{
-						tokens.emplace_back(tok);
-					}
-
-					return false;
-				}
-			},
-			lemni::lex(state)
-		))
-			break;
+	if(auto fnDef = lemni::exprAsFnDef(expr)){
+		auto name = lemni::fnDefExprName(fnDef);
+		std::cout << "Fn def '" << name << "'\n";
 	}
 
-	return tokens;
+	return false;
 }
 
 int main(int argc, char *argv[]){
@@ -54,13 +48,10 @@ int main(int argc, char *argv[]){
 		if(std::visit(
 			Overloaded{
 				[](const lemni::ParseError &err){
-					std::cerr << "Parsing error: " << err.msg << '\n';
+					std::cerr << "Parsing error[" << err.loc.line << '.' << err.loc.col << "]: " << err.msg << '\n';
 					return true;
 				},
-				[](lemni::Expr expr){
-					if(!expr) return true;
-					else return false;
-				}
+				[](lemni::Expr expr){ return handleExpr(expr); }
 			},
 			lemni::parse(state)
 		))

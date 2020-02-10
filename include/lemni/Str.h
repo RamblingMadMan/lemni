@@ -32,7 +32,7 @@ extern "C" {
  */
 typedef struct {
 	const char *ptr;
-	size_t len;
+	uintptr_t len;
 } LemniStr;
 
 /**
@@ -47,6 +47,18 @@ typedef struct {
  */
 inline LemniStr lemniStrFrom(const char *str){
 	return { .ptr = str, .len = strlen(str) };
+}
+
+inline LemniStr lemniSubStr(LemniStr str, const size_t from, const size_t len){
+	LemniStr ret = { .ptr = str.ptr, .len = str.len };
+
+	size_t a = from > ret.len ? ret.len : from;
+	size_t maxLen = ret.len - a;
+
+	ret.ptr += a;
+	ret.len = len > maxLen ? maxLen : len;
+
+	return ret;
 }
 
 /**
@@ -66,6 +78,10 @@ inline int lemniStrCmp(LemniStr lhs, LemniStr rhs){
 #ifndef LEMNI_NO_CPP
 #include <string_view>
 #include <ostream>
+
+namespace lemni{
+	using Str = LemniStr;
+}
 
 inline bool operator<(const LemniStr &lhs, const LemniStr &rhs) noexcept{
 	return lemniStrCmp(lhs, rhs) < 0;

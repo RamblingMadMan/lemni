@@ -102,6 +102,7 @@ LemniLexResult lemniLex(LemniLexState state);
 #ifndef LEMNI_NO_CPP
 #include <string_view>
 #include <variant>
+#include <vector>
 
 namespace lemni{
 	using Token = LemniToken;
@@ -117,13 +118,35 @@ namespace lemni{
 		private:
 			LemniLexState m_state;
 
-			friend std::variant<Token, LexError> lex(LexState &state);
+			friend std::variant<Token, LexError> lex(LexState &state) noexcept;
 	};
 
-	inline std::variant<Token, LexError> lex(LexState &state){
+	inline std::variant<Token, LexError> lex(LexState &state) noexcept{
 		auto res = lemniLex(state.m_state);
 		if(res.hasError) return res.error;
 		else return res.token;
+	}
+
+	inline std::variant<std::vector<Token>, LexError> lexAll(std::string_view str){
+		LexState state{str};
+
+		std::vector<Token> ret;
+
+		while(1){
+			auto res = lex(state);
+			if(auto err = std::get_if<LexError>(&res)){
+				return *err;
+			}
+			else{
+				auto &&tok = std::get<Token>(res);
+				if(tok.type == LEMNI_TOKEN_EOF)
+					break;
+				else
+					ret.emplace_back(std::move(tok));
+			}
+		}
+
+		return ret;
 	}
 }
 #endif // !LEMNI_NO_CPP

@@ -85,6 +85,13 @@ struct LemniStrExprT: LemniConstantExprT{
 	std::string val;
 };
 
+struct LemniCommaListExprT: LemniExprT{
+	explicit LemniCommaListExprT(std::vector<LemniExpr> elements_)
+		: elements(std::move(elements_)){}
+
+	std::vector<LemniExpr> elements;
+};
+
 struct LemniUnaryOpExprT: LemniExprT{
 	LemniUnaryOpExprT(LemniUnaryOp op_, LemniExpr expr_)
 		: op(op_), expr(expr_){}

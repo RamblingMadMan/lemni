@@ -26,8 +26,8 @@ LemniStr lemniRefExprId(LemniRefExpr ref){ return LemniStr{ref->id.c_str(), ref-
 LemniApplicationExpr lemniExprAsApplication(LemniExpr expr){ return dynamic_cast<LemniApplicationExpr>(expr); }
 LemniExpr lemniApplicationExprBase(LemniApplicationExpr app){ return app; }
 LemniExpr lemniApplicationExprFn(LemniApplicationExpr app){ return app->fn; }
-uint32_t LemniApplicationExprNumArgs(LemniApplicationExpr app){ return static_cast<uint32_t>(app->args.size()); }
-LemniExpr LemniApplicationExprArg(LemniApplicationExpr app, const uint32_t idx){ return app->args[idx]; }
+uint32_t lemniApplicationExprNumArgs(LemniApplicationExpr app){ return static_cast<uint32_t>(app->args.size()); }
+LemniExpr lemniApplicationExprArg(LemniApplicationExpr app, const uint32_t idx){ return app->args[idx]; }
 
 LemniLiteralExpr lemniExprAsLiteral(LemniExpr expr){ return dynamic_cast<LemniLiteralExpr>(expr); }
 LemniExpr lemniLiteralExprBase(LemniLiteralExpr lit){ return lit; }
@@ -53,6 +53,11 @@ LemniAIntConst lemniIntExprValue(LemniIntExpr int_){ return int_->val; }
 LemniStrExpr lemniConstantExprAsStr(LemniConstantExpr constant){ return dynamic_cast<LemniStrExpr>(constant); }
 LemniConstantExpr lemniStrExprBase(LemniStrExpr str){ return str; }
 LemniStr lemniStrExprValue(LemniStrExpr str){ return LemniStr{str->val.c_str(), str->val.size()}; }
+
+LemniCommaListExpr lemniExprAsCommaList(LemniExpr expr){ return dynamic_cast<LemniCommaListExpr>(expr); }
+LemniExpr lemniCommaListExprBase(LemniCommaListExpr list){ return list; }
+uint32_t lemniCommaListExprNumElements(LemniCommaListExpr list){ return static_cast<uint32_t>(list->elements.size()); }
+LemniExpr lemniCommaListExprElement(LemniCommaListExpr list, const uint32_t idx){ return list->elements[idx]; }
 
 LemniUnaryOpExpr lemniExprAsUnaryOp(LemniExpr expr){ return dynamic_cast<LemniUnaryOpExpr>(expr); }
 LemniExpr lemniUnaryOpExprBase(LemniUnaryOpExpr unaryOp){ return unaryOp; }

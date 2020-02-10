@@ -21,6 +21,7 @@ set(
 	${LEMNI_INCLUDE_DIR}/lemni/ARatio.h
 	${LEMNI_INCLUDE_DIR}/lemni/Expr.h
 	${LEMNI_INCLUDE_DIR}/lemni/parse.h
+	${LEMNI_INCLUDE_DIR}/lemni/Interop.h
 	${LEMNI_INCLUDE_DIR}/lemni/Type.h
 )
 

@@ -139,26 +139,32 @@ LemniTopType lemniBoolTypeBase(LemniBoolType bool_){ return reinterpret_cast<Lem
 LemniType lemniBoolAsType(LemniBoolType bool_){ return bool_; }
 
 LemniNumberType lemniTypeAsNumber(LemniType type){ return dynamic_cast<LemniNumberType>(type); }
-LemniTopType LemniNumberTypeBase(LemniNumberType num){ return reinterpret_cast<LemniTopType>(num->base); }
+LemniTopType lemniNumberTypeBase(LemniNumberType num){ return reinterpret_cast<LemniTopType>(num->base); }
+LemniType lemniNumberAsType(LemniNumberType num){ return num; }
 
 LemniRealType lemniTypeAsReal(LemniType type){ return dynamic_cast<LemniRealType>(type); }
 LemniNumberType lemniRealTypeBase(LemniRealType real){ return reinterpret_cast<LemniNumberType>(real->base); }
 LemniRealType lemniRealTypeAbstract(LemniRealType real){ return reinterpret_cast<LemniRealType>(real->abstract); }
+LemniType lemniRealAsType(LemniRealType real){ return real; }
 
 LemniRatioType lemniTypeAsRatio(LemniType type){ return dynamic_cast<LemniRatioType>(type); }
 LemniRealType lemniRatioTypeBase(LemniRatioType ratio){ return reinterpret_cast<LemniRealType>(ratio->base); }
 LemniRatioType lemniRatioTypeAbstract(LemniRatioType ratio){ return reinterpret_cast<LemniRatioType>(ratio->abstract); }
+LemniType lemniRatioAsType(LemniRatioType ratio){ return ratio; }
 
 LemniIntType lemniTypeAsInt(LemniType type){ return dynamic_cast<LemniIntType>(type); }
 LemniRatioType lemniIntTypeBase(LemniIntType int_){ return reinterpret_cast<LemniRatioType>(int_->base); }
 LemniIntType lemniIntTypeAbstract(LemniIntType int_){ return reinterpret_cast<LemniIntType>(int_->abstract); }
+LemniType lemniIntAsType(LemniIntType int_){ return int_; }
 
 LemniNatType lemniTypeAsNat(LemniType type){ return dynamic_cast<LemniNatType>(type); }
 LemniIntType lemniNatTypeBase(LemniNatType nat){ return reinterpret_cast<LemniIntType>(nat->base); }
 LemniNatType lemniNatTypeAbstract(LemniNatType nat){ return reinterpret_cast<LemniNatType>(nat->abstract); }
+LemniType lemniNatAsType(LemniNatType nat){ return nat; }
 
 LemniStringType lemniTypeAsString(LemniType type){ return dynamic_cast<LemniStringType>(type); }
 LemniTopType lemniStringTypeBase(LemniStringType str){ return reinterpret_cast<LemniTopType>(str->base); }
+LemniType lemniStringAsType(LemniStringType str){ return str; }
 
 LemniStringASCIIType lemniTypeAsStringASCII(LemniType type){ return dynamic_cast<LemniStringASCIIType>(type); }
 LemniStringType lemniStringASCIITypeBase(LemniStringASCIIType strA){ return reinterpret_cast<LemniStringType>(strA->base); }
@@ -171,21 +177,25 @@ LemniTopType lemniFunctionTypeBase(LemniFunctionType fn){ return reinterpret_cas
 LemniType lemniFunctionTypeResult(LemniFunctionType fn){ return fn->result; }
 uint32_t lemniFunctionTypeNumParams(LemniFunctionType fn){ return static_cast<uint32_t>(fn->params.size()); }
 LemniType lemniFunctionTypeParam(LemniFunctionType fn, const uint32_t idx){ return fn->params[idx]; }
+LemniType lemniFunctionAsType(LemniFunctionType fn){ return fn; }
 
 LemniSumType lemniTypeAsSum(LemniType type){ return dynamic_cast<LemniSumType>(type); }
 LemniTopType lemniSumTypeBase(LemniSumType sum){ return reinterpret_cast<LemniTopType>(sum->base); }
 uint32_t lemniSumTypeNumCases(LemniSumType sum){ return static_cast<uint32_t>(sum->cases.size()); }
 LemniType lemniSumTypeCase(LemniSumType sum, const uint32_t idx){ return sum->cases[idx]; }
+LemniType lemniSumAsType(LemniSumType sum){ return sum; }
 
 LemniProductType lemniTypeAsProduct(LemniType type){ return dynamic_cast<LemniProductType>(type); }
 LemniTopType lemniProductTypeBase(LemniProductType product){ return reinterpret_cast<LemniTopType>(product->base); }
 uint32_t lemniProductTypeNumComponents(LemniProductType product){ return static_cast<uint32_t>(product->components.size()); }
 LemniType lemniProductTypeComponent(LemniProductType product, const uint32_t idx){ return product->components[idx]; }
+LemniType lemniProductAsType(LemniProductType product){ return product; }
 
 LemniRecordType lemniTypeAsRecord(LemniType type){ return dynamic_cast<LemniRecordType>(type); }
 LemniTopType lemniRecordTypeBase(LemniRecordType record){ return reinterpret_cast<LemniTopType>(record->base); }
 uint32_t lemniRecordTypeNumFields(LemniRecordType record){ return static_cast<uint32_t>(record->fields.size()); }
 const LemniRecordTypeField *lemniRecordTypeField(LemniRecordType record, const uint32_t idx){ return &record->fields[idx]; }
+LemniType lemniRecordAsType(LemniRecordType record){ return record; }
 
 inline bool operator<(const LemniRecordTypeField &lhs, const LemniRecordTypeField &rhs) noexcept{
 	if(lhs.type == rhs.type) return lhs.name < rhs.name;
@@ -229,6 +239,8 @@ struct LemniTypeSetT{
 	std::map<std::vector<LemniType>, std::unique_ptr<LemniSumTypeT>> sumTys;
 	std::map<std::vector<LemniType>, std::unique_ptr<LemniProductTypeT>> productTys;
 	std::map<std::vector<LemniRecordTypeField>, std::unique_ptr<LemniRecordTypeT>> recordTys;
+
+	std::map<LemniType, std::map<std::vector<LemniType>, std::unique_ptr<LemniFunctionTypeT>>> fnTys;
 };
 
 LemniTypeSet lemniCreateTypeSet(void){
@@ -249,7 +261,7 @@ LemniBoolType lemniTypeSetGetBool(LemniTypeSet types){ return &types->bool_; }
 
 LemniNumberType lemniTypeSetGetNumber(LemniTypeSet types){ return &types->number; }
 
-LemniRealType lemniTypeSetGetReal(LemniTypeSet types, uint32_t numBits){
+LemniRealType lemniTypeSetGetReal(LemniTypeSet types, const uint32_t numBits){
 	if(numBits == 0) return &types->real;
 
 	auto res = types->realTys.find(numBits);
@@ -263,7 +275,7 @@ LemniRealType lemniTypeSetGetReal(LemniTypeSet types, uint32_t numBits){
 	return emplaceRes.first->second.get();
 }
 
-LemniRatioType lemniTypeSetGetRatio(LemniTypeSet types, uint32_t numBits){
+LemniRatioType lemniTypeSetGetRatio(LemniTypeSet types, const uint32_t numBits){
 	if(numBits == 0) return &types->ratio;
 
 	auto res = types->ratioTys.find(numBits);
@@ -277,7 +289,7 @@ LemniRatioType lemniTypeSetGetRatio(LemniTypeSet types, uint32_t numBits){
 	return emplaceRes.first->second.get();
 }
 
-LemniIntType lemniTypeSetGetInt(LemniTypeSet types, uint32_t numBits){
+LemniIntType lemniTypeSetGetInt(LemniTypeSet types, const uint32_t numBits){
 	if(numBits == 0) return &types->int_;
 
 	auto res = types->intTys.find(numBits);
@@ -291,7 +303,7 @@ LemniIntType lemniTypeSetGetInt(LemniTypeSet types, uint32_t numBits){
 	return emplaceRes.first->second.get();
 }
 
-LemniNatType lemniTypeSetGetNat(LemniTypeSet types, uint32_t numBits){
+LemniNatType lemniTypeSetGetNat(LemniTypeSet types, const uint32_t numBits){
 	if(numBits == 0) return &types->nat;
 
 	auto res = types->natTys.find(numBits);
@@ -310,7 +322,7 @@ LemniStringType lemniTypeSetGetString(LemniTypeSet types){ return &types->str; }
 LemniStringASCIIType lemniTypeSetGetStringASCII(LemniTypeSet types){ return &types->strA; }
 LemniStringUTF8Type lemniTypeSetGetStringUTF8(LemniTypeSet types){ return &types->strU; }
 
-LemniSumType lemniTypeSetGetSum(LemniTypeSet types, LemniType *const cases, uint32_t numCases){
+LemniSumType lemniTypeSetGetSum(LemniTypeSet types, LemniType *const cases, const uint32_t numCases){
 	std::vector<LemniType> caseTys(cases, cases + numCases);
 	std::sort(begin(caseTys), end(caseTys));
 	caseTys.erase(std::unique(begin(caseTys), end(caseTys)), end(caseTys));
@@ -326,7 +338,7 @@ LemniSumType lemniTypeSetGetSum(LemniTypeSet types, LemniType *const cases, uint
 	return emplaceRes.first->second.get();
 }
 
-LemniProductType lemniTypeSetGetProduct(LemniTypeSet types, LemniType *const components, uint32_t numComponents){
+LemniProductType lemniTypeSetGetProduct(LemniTypeSet types, LemniType *const components, const uint32_t numComponents){
 	std::vector<LemniType> componentTys(components, components + numComponents);
 
 	auto res = types->productTys.find(componentTys);
@@ -340,7 +352,7 @@ LemniProductType lemniTypeSetGetProduct(LemniTypeSet types, LemniType *const com
 	return emplaceRes.first->second.get();
 }
 
-LemniRecordType lemniTypeSetGetRecord(LemniTypeSet types, const LemniRecordTypeField *const fields, uint32_t numFields){
+LemniRecordType lemniTypeSetGetRecord(LemniTypeSet types, const LemniRecordTypeField *const fields, const uint32_t numFields){
 	std::vector<LemniRecordTypeField> fieldVals(fields, fields + numFields);
 
 	auto res = types->recordTys.find(fieldVals);
@@ -350,6 +362,22 @@ LemniRecordType lemniTypeSetGetRecord(LemniTypeSet types, const LemniRecordTypeF
 	auto ptr = std::make_unique<LemniRecordTypeT>(&types->top, fieldVals);
 
 	auto emplaceRes = types->recordTys.try_emplace(fieldVals, std::move(ptr));
+
+	return emplaceRes.first->second.get();
+}
+
+LemniFunctionType lemniTypeSetGetFunction(LemniTypeSet types, LemniType result, LemniType *const params, const uint32_t numParams){
+	std::vector<LemniType> paramTys(params, params + numParams);
+
+	auto &&fnMap = types->fnTys[result];
+
+	auto res = fnMap.find(paramTys);
+	if(res != end(fnMap))
+		return res->second.get();
+
+	auto ptr = std::make_unique<LemniFunctionTypeT>(&types->top, result, paramTys);
+
+	auto emplaceRes = fnMap.try_emplace(paramTys, std::move(ptr));
 
 	return emplaceRes.first->second.get();
 }
