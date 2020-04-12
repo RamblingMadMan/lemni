@@ -1,6 +1,7 @@
 # Build directories
 build
 cmake-build-*
+docs
 
 # Desktop/IDE related files
 CMakeLists.txt.user

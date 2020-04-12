@@ -17,6 +17,8 @@
 */
 
 #include <cstdlib>
+#include <cstring>
+
 #include <new>
 #include <memory>
 
@@ -38,7 +40,13 @@ LemniAReal lemniCreateAReal(void){
 	return p;
 }
 
-LemniAReal lemniCreateARealStr(LemniStr str, const int base){
+LemniAReal lemniCreateARealCopy(LemniARealConst other){
+	auto p = createAReal();
+	mpfr_init_set(p->val, other->val, MPFR_RNDN);
+	return p;
+}
+
+LemniAReal lemniCreateARealStr(const LemniStr str, const int base){
 	auto p = createAReal();
 	std::string cstr(str.ptr, str.len);
 	mpfr_init_set_str(p->val, cstr.c_str(), base, MPFR_RNDN);
@@ -63,10 +71,48 @@ LemniAReal lemniCreateARealDouble(const double d){
 	return p;
 }
 
+LemniAReal lemniCreateARealLong(const long si){
+	auto p = createAReal();
+	mpfr_init_set_si(p->val, si, MPFR_RNDN);
+	return p;
+}
+
+LemniAReal lemniCreateARealULong(const unsigned long ui){
+	auto p = createAReal();
+	mpfr_init_set_ui(p->val, ui, MPFR_RNDN);
+	return p;
+}
+
 void lemniDestroyAReal(LemniAReal areal){
 	mpfr_clear(areal->val);
 	std::destroy_at(areal);
 	std::free(areal);
+}
+
+void lemniARealSet(LemniAReal res, LemniARealConst other){
+	mpfr_set(res->val, other->val, MPFR_RNDN);
+}
+
+void lemniARealStr(LemniARealConst areal, void *user, LemniARealStrCB cb){
+	//mpfr_prec_t prec = mpfr_get_prec(areal->val);
+	//mpfr_exp_t exp = mpfr_get_exp(areal->val);
+
+	mpfr_exp_t exp;
+	char *cstr = mpfr_get_str(nullptr, &exp, 10, 0, areal->val, MPFR_RNDN);
+	std::string str = cstr;
+	str.insert(begin(str) + exp, '.');
+
+	for(std::size_t i = str.size()-1; long(i) > (exp + 1); --i){
+		if(str[i] == '0'){
+			str.erase(begin(str) + i);
+		}
+		else{
+			break;
+		}
+	}
+
+	cb(user, {str.c_str(), str.size()});
+	mpfr_free_str(cstr);
 }
 
 void lemniARealAdd(LemniAReal res, LemniARealConst lhs, LemniARealConst rhs){
@@ -91,4 +137,8 @@ void lemniARealNeg(LemniAReal res, LemniARealConst val){
 
 void lemniARealAbs(LemniAReal res, LemniARealConst val){
 	mpfr_abs(res->val, val->val, MPFR_RNDN);
+}
+
+int lemniARealCmp(LemniARealConst lhs, LemniARealConst rhs){
+	return mpfr_cmp(lhs->val, rhs->val);
 }

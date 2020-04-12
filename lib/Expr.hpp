@@ -25,118 +25,130 @@
 #include "lemni/Expr.h"
 
 struct LemniExprT{
+	explicit LemniExprT(LemniLocation loc_): loc(loc_){}
 	virtual ~LemniExprT() = default;
-	//virtual LemniStr toStr() const noexcept = 0;
-};
 
-struct LemniRefExprT: LemniExprT{
-	explicit LemniRefExprT(std::string id_)
-		: id(std::move(id_)){}
-
-	std::string id;
+	LemniLocation loc;
 };
 
 struct LemniApplicationExprT: LemniExprT{
-	LemniApplicationExprT(LemniExpr fn_, std::vector<LemniExpr> args_)
-		: fn(fn_), args(std::move(args_)){}
+	LemniApplicationExprT(LemniLocation loc_, LemniExpr fn_, std::vector<LemniExpr> args_)
+		: LemniExprT(loc_), fn(fn_), args(std::move(args_)){}
 
 	LemniExpr fn;
 	std::vector<LemniExpr> args;
 };
 
-struct LemniLiteralExprT: LemniExprT{};
-struct LemniConstantExprT: LemniLiteralExprT{};
+struct LemniLiteralExprT: LemniExprT{ using LemniExprT::LemniExprT; };
 
-struct LemniUnitExprT: LemniConstantExprT{};
+struct LemniTupleExprT: LemniLiteralExprT{
+	LemniTupleExprT(LemniLocation loc_, std::vector<LemniExpr> elements_)
+		: LemniLiteralExprT(loc_), elements(std::move(elements_)){}
 
-struct LemniNumExprT: LemniConstantExprT{};
+	std::vector<LemniExpr> elements;
+};
+
+struct LemniConstantExprT: LemniLiteralExprT{ using LemniLiteralExprT::LemniLiteralExprT; };
+
+struct LemniUnitExprT: LemniConstantExprT{ using LemniConstantExprT::LemniConstantExprT; };
+
+struct LemniNumExprT: LemniConstantExprT{ using LemniConstantExprT::LemniConstantExprT; };
 
 struct LemniRealExprT: LemniNumExprT{
-	LemniRealExprT(LemniStr str, const int base)
-		: val(lemniCreateARealStr(str, base)){}
+	LemniRealExprT(LemniLocation loc_, LemniStr str, const int base)
+		: LemniNumExprT(loc_), val(lemniCreateARealStr(str, base)){}
 
-	~LemniRealExprT(){ lemniDestroyAReal(val); }
+	~LemniRealExprT() override{ lemniDestroyAReal(val); }
 
 	LemniAReal val;
 };
 
 struct LemniRatioExprT: LemniNumExprT{
-	LemniRatioExprT(LemniStr str, const int base)
-		: val(lemniCreateARatioStr(str, base)){}
+	LemniRatioExprT(LemniLocation loc_, LemniStr str, const int base)
+		: LemniNumExprT(loc_), val(lemniCreateARatioStr(str, base)){}
 
-	~LemniRatioExprT(){ lemniDestroyARatio(val); }
+	~LemniRatioExprT() override{ lemniDestroyARatio(val); }
 
 	LemniARatio val;
 };
 
 struct LemniIntExprT: LemniNumExprT{
-	LemniIntExprT(LemniStr str, const int base)
-		: val(lemniCreateAIntStr(str, base)){}
+	LemniIntExprT(LemniLocation loc_, LemniStr str, const int base)
+		: LemniNumExprT(loc_), val(lemniCreateAIntStr(str, base)){}
 
-	~LemniIntExprT(){ lemniDestroyAInt(val); }
+	~LemniIntExprT() override{ lemniDestroyAInt(val); }
 
 	LemniAInt val;
 };
 
 struct LemniStrExprT: LemniConstantExprT{
-	explicit LemniStrExprT(std::string str)
-		: val(std::move(str)){}
+	explicit LemniStrExprT(LemniLocation loc_, std::string str)
+		: LemniConstantExprT(loc_), val(std::move(str)){}
 
 	std::string val;
 };
 
 struct LemniCommaListExprT: LemniExprT{
-	explicit LemniCommaListExprT(std::vector<LemniExpr> elements_)
-		: elements(std::move(elements_)){}
+	explicit LemniCommaListExprT(LemniLocation loc_, std::vector<LemniExpr> elements_)
+		: LemniExprT(loc_), elements(std::move(elements_)){}
 
 	std::vector<LemniExpr> elements;
 };
 
 struct LemniUnaryOpExprT: LemniExprT{
-	LemniUnaryOpExprT(LemniUnaryOp op_, LemniExpr expr_)
-		: op(op_), expr(expr_){}
+	LemniUnaryOpExprT(LemniLocation loc_, LemniUnaryOp op_, LemniExpr expr_)
+		: LemniExprT(loc_), op(op_), expr(expr_){}
 
 	LemniUnaryOp op;
 	LemniExpr expr;
 };
 
 struct LemniBinaryOpExprT: LemniExprT{
-	LemniBinaryOpExprT(LemniBinaryOp op_, LemniExpr lhs_, LemniExpr rhs_)
-		: op(op_), lhs(lhs_), rhs(rhs_){}
+	LemniBinaryOpExprT(LemniLocation loc_, LemniBinaryOp op_, LemniExpr lhs_, LemniExpr rhs_)
+		: LemniExprT(loc_), op(op_), lhs(lhs_), rhs(rhs_){}
 
 	LemniBinaryOp op;
 	LemniExpr lhs, rhs;
 };
 
-struct LemniFnDefExprT: LemniExprT{
-	LemniFnDefExprT(std::string name_, std::vector<LemniExpr> params_, LemniExpr body_)
-		: name(std::move(name_)), params(std::move(params_)), body(body_){}
-
-	std::string name;
-	std::vector<LemniExpr> params;
-	LemniExpr body;
-};
-
 struct LemniLambdaExprT: LemniExprT{
-	LemniLambdaExprT(std::vector<LemniExpr> params_, LemniExpr body_)
-		: params(std::move(params_)), body(body_){}
+	LemniLambdaExprT(LemniLocation loc_, std::vector<LemniExpr> params_, LemniExpr body_)
+		: LemniExprT(loc_), params(std::move(params_)), body(body_){}
 
 	std::vector<LemniExpr> params;
 	LemniExpr body;
 };
 
 struct LemniBlockExprT: LemniExprT{
-	explicit LemniBlockExprT(std::vector<LemniExpr> exprs_)
-			: exprs(std::move(exprs_)){}
+	explicit LemniBlockExprT(LemniLocation loc_, std::vector<LemniExpr> exprs_)
+		: LemniExprT(loc_), exprs(std::move(exprs_)){}
 
 	std::vector<LemniExpr> exprs;
 };
 
 struct LemniReturnExprT: LemniExprT{
-	explicit LemniReturnExprT(LemniExpr expr_)
-		: expr(expr_){}
+	explicit LemniReturnExprT(LemniLocation loc_, LemniExpr expr_)
+		: LemniExprT(loc_), expr(expr_){}
 
 	LemniExpr expr;
+};
+
+struct LemniLValueExprT: LemniExprT{ using LemniExprT::LemniExprT; };
+
+struct LemniRefExprT: LemniLValueExprT{
+	LemniRefExprT(LemniLocation loc_, std::string id_)
+		: LemniLValueExprT(loc_), id(std::move(id_)){}
+
+	std::string id;
+};
+
+struct LemniFnDefExprT: LemniLValueExprT{
+	LemniFnDefExprT(LemniLocation loc_, std::string name_, std::vector<LemniExpr> params_, LemniExpr body_)
+		: LemniLValueExprT(loc_), name(std::move(name_)), params(std::move(params_)), body(body_){}
+
+	std::string name;
+	std::vector<LemniExpr> params;
+	LemniExpr body;
 };
 
 #endif // !LEMNI_LIB_EXPR_HPP

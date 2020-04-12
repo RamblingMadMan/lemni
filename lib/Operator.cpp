@@ -100,3 +100,20 @@ uint32_t lemniBinaryOpPrecedence(LemniBinaryOp op){
 
 #undef BINOP_NEXT_PREC
 }
+
+bool lemniBinaryOpIsLogic(LemniBinaryOp op){
+	switch(op){
+		case LEMNI_BINARY_LT:
+		case LEMNI_BINARY_GT:
+		case LEMNI_BINARY_LTEQ:
+		case LEMNI_BINARY_GTEQ:
+		case LEMNI_BINARY_EQ:
+		case LEMNI_BINARY_NEQ:
+		case LEMNI_BINARY_ADD:
+		case LEMNI_BINARY_OR:
+			return true;
+
+		default:
+			return false;
+	}
+}

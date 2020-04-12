@@ -30,7 +30,7 @@ typedef const struct LemniAIntT *LemniAIntConst;
 
 LemniAInt lemniCreateAInt(void);
 LemniAInt lemniCreateAIntCopy(LemniAIntConst other);
-LemniAInt lemniCreateAIntStr(LemniStr str, const int base);
+LemniAInt lemniCreateAIntStr(const LemniStr str, const int base);
 LemniAInt lemniCreateAIntLong(const long si);
 LemniAInt lemniCreateAIntULong(const unsigned long ui);
 
@@ -41,7 +41,15 @@ void lemniAIntSetStr(LemniAInt aint, LemniStr str, const int base);
 void lemniAIntSetLong(LemniAInt aint, const long si);
 void lemniAIntSetULong(LemniAInt aint, const unsigned long ui);
 
-LemniStr lemniAIntStr(LemniAInt aint);
+long lemniAIntToLong(LemniAIntConst aint);
+unsigned long lemniAIntToULong(LemniAIntConst aint);
+
+uint64_t lemniAIntNumBits(LemniAIntConst aint);
+uint64_t lemniAIntNumBitsUnsigned(LemniAIntConst aint);
+
+typedef void(*LemniAIntStrCB)(void *user, const LemniStr str);
+
+void lemniAIntStr(LemniAIntConst aint, void *user, LemniAIntStrCB cb);
 
 void lemniAIntAdd(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs);
 void lemniAIntSub(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs);
@@ -49,6 +57,8 @@ void lemniAIntMul(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs);
 
 void lemniAIntNeg(LemniAInt res, LemniAIntConst val);
 void lemniAIntAbs(LemniAInt res, LemniAIntConst val);
+
+int lemniAIntCmp(LemniAIntConst lhs, LemniAIntConst rhs);
 
 #ifdef __cplusplus
 }
@@ -59,22 +69,28 @@ void lemniAIntAbs(LemniAInt res, LemniAIntConst val);
 namespace lemni{
 	class AInt{
 		public:
-			AInt()
+			AInt() noexcept
 				: m_val(lemniCreateAInt()){}
 
-			AInt(std::string_view str, const int base = 10)
+			explicit AInt(std::string_view str, const int base = 10) noexcept
 				: m_val(lemniCreateAIntStr(LemniStr{str.data(), str.size()}, base)){}
 
-			explicit AInt(const long si)
+			explicit AInt(const long si) noexcept
 				: m_val(lemniCreateAIntLong(si)){}
 
-			explicit AInt(const unsigned long ui)
+			explicit AInt(const unsigned long ui) noexcept
 				: m_val(lemniCreateAIntULong(ui)){}
 
-			AInt(const AInt &other)
+			explicit AInt(const int i) noexcept
+				: AInt(static_cast<long>(i)){}
+
+			explicit AInt(const unsigned int i) noexcept
+				: AInt(static_cast<unsigned long>(i)){}
+
+			AInt(const AInt &other) noexcept
 				: m_val(lemniCreateAIntCopy(other.m_val)){}
 
-			AInt(AInt &&other)
+			AInt(AInt &&other) noexcept
 				: m_val(other.m_val)
 			{
 				other.m_val = nullptr;
@@ -82,63 +98,119 @@ namespace lemni{
 
 			~AInt(){ if(m_val) lemniDestroyAInt(m_val); }
 
-			AInt &operator=(const AInt &other){
+			AInt &operator =(const AInt &other){
 				lemniAIntSet(m_val, other.m_val);
 				return *this;
 			}
 
-			AInt &operator=(AInt &&other){
+			AInt &operator =(AInt &&other){
 				m_val = other.m_val;
 				other.m_val = nullptr;
 				return *this;
 			}
 
-			AInt &operator+=(const AInt &rhs) noexcept{
+			static AInt from(LemniAInt aint) noexcept{
+				return AInt(aint);
+			}
+
+			LemniAInt handle() noexcept{ return m_val; }
+			LemniAIntConst handle() const noexcept{ return m_val; }
+
+			uint64_t numBits() const noexcept{ return lemniAIntNumBits(m_val); }
+			uint64_t numBitsUnsigned() const noexcept{ return lemniAIntNumBitsUnsigned(m_val); }
+
+			long toLong() const noexcept{
+				return lemniAIntToLong(m_val);
+			}
+
+			unsigned long toULong() const noexcept{
+				return lemniAIntToULong(m_val);
+			}
+
+			std::string toString() const noexcept{
+				std::string res;
+				lemniAIntStr(m_val, &res, [](void *p, const LemniStr str){
+					auto strp = reinterpret_cast<std::string*>(p);
+					*strp = std::string(str.ptr, str.len);
+				});
+				return res;
+			}
+
+			AInt operator -() const noexcept{
+				AInt res;
+				lemniAIntNeg(res.m_val, m_val);
+				return res;
+			}
+
+			AInt &operator +=(const AInt &rhs) noexcept{
 				lemniAIntAdd(m_val, m_val, rhs.m_val);
 				return *this;
 			}
 
-			AInt &operator-=(const AInt &rhs) noexcept{
+			AInt &operator -=(const AInt &rhs) noexcept{
 				lemniAIntSub(m_val, m_val, rhs.m_val);
 				return *this;
 			}
 
-			AInt &operator*=(const AInt &rhs) noexcept{
+			AInt &operator *=(const AInt &rhs) noexcept{
 				lemniAIntMul(m_val, m_val, rhs.m_val);
 				return *this;
 			}
 
-			AInt operator+(const AInt &rhs) noexcept{
+			AInt operator +(const AInt &rhs) const noexcept{
 				AInt res;
 				lemniAIntAdd(res.m_val, m_val, rhs.m_val);
 				return res;
 			}
 
-			AInt operator-(const AInt &rhs) noexcept{
+			AInt operator -(const AInt &rhs) const noexcept{
 				AInt res;
 				lemniAIntSub(res.m_val, m_val, rhs.m_val);
 				return res;
 			}
 
-			AInt operator*(const AInt &rhs) noexcept{
+			AInt operator *(const AInt &rhs) const noexcept{
 				AInt res;
 				lemniAIntMul(res.m_val, m_val, rhs.m_val);
 				return res;
 			}
 
+			bool operator <(const AInt &rhs) const noexcept{
+				return lemniAIntCmp(m_val, rhs.m_val) < 0;
+			}
+
+			bool operator >(const AInt &rhs) const noexcept{
+				return lemniAIntCmp(m_val, rhs.m_val) > 0;
+			}
+
+			bool operator <=(const AInt &rhs) const noexcept{
+				return lemniAIntCmp(m_val, rhs.m_val) <= 0;
+			}
+
+			bool operator >=(const AInt &rhs) const noexcept{
+				return lemniAIntCmp(m_val, rhs.m_val) >= 0;
+			}
+
+			bool operator ==(const AInt &rhs) const noexcept{
+				return lemniAIntCmp(m_val, rhs.m_val) == 0;
+			}
+
+			bool operator !=(const AInt &rhs) const noexcept{
+				return lemniAIntCmp(m_val, rhs.m_val) != 0;
+			}
+
 		private:
+			explicit AInt(LemniAInt aint) noexcept
+				: m_val(aint){}
+
 			LemniAInt m_val;
 
-			friend AInt neg(AInt val);
-			friend AInt abs(AInt val);
+			friend AInt abs(AInt val) noexcept;
+			friend class ARatio;
+			friend class AReal;
 	};
 
-	inline AInt neg(AInt val){
-		lemniAIntNeg(val.m_val, val.m_val);
-		return val;
-	}
-
-	inline AInt abs(AInt val){
+	inline AInt abs(AInt val) noexcept{
 		lemniAIntAbs(val.m_val, val.m_val);
 		return val;
 	}

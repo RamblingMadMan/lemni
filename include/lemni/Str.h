@@ -19,6 +19,11 @@
 #ifndef LEMNI_STR_H
 #define LEMNI_STR_H 1
 
+/**
+ * @defgroup LemniStr String view type and related functions
+ * @{
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,7 +41,7 @@ typedef struct {
 } LemniStr;
 
 /**
- * @brief Create a ``LemniStr`` from a constexpr string.
+ * @brief Create a ``LemniStr`` from a string literal.
  */
 #define LEMNICSTR(str) ((LemniStr){ .ptr = str, .len = sizeof(str)-1 })
 
@@ -105,5 +110,9 @@ inline std::ostream &operator<<(std::ostream &str, const LemniStr &s){
 }
 #endif // !LEMNI_NO_CPP
 #endif // __cplusplus
+
+/**
+ * @}
+ */
 
 #endif // !LEMNI_STR_H

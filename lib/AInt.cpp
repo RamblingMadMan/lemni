@@ -17,18 +17,13 @@
 */
 
 #include <cstdlib>
+#include <cstring>
+
 #include <new>
 #include <memory>
 
 #define LEMNI_NO_CPP
 #include "AInt.hpp"
-
-namespace {
-	LemniAInt createAInt(){
-		auto mem = std::malloc(sizeof(LemniAIntT));
-		return new(mem) LemniAIntT;
-	}
-}
 
 LemniAInt lemniCreateAInt(void){
 	auto p = createAInt();
@@ -42,7 +37,7 @@ LemniAInt lemniCreateAIntCopy(LemniAIntConst other){
 	return p;
 }
 
-LemniAInt lemniCreateAIntStr(LemniStr str, const int base){
+LemniAInt lemniCreateAIntStr(const LemniStr str, const int base){
 	auto p = createAInt();
 	std::string cstr(str.ptr, str.len);
 	mpz_init_set_str(p->val, cstr.c_str(), base);
@@ -84,6 +79,30 @@ void lemniAIntSetULong(LemniAInt aint, const unsigned long ui){
 	mpz_set_ui(aint->val, ui);
 }
 
+uint64_t lemniAIntNumBits(LemniAIntConst aint){
+	return mpz_sizeinbase(aint->val, 2) + 1;
+}
+
+uint64_t lemniAIntNumBitsUnsigned(LemniAIntConst aint){
+	return mpz_sizeinbase(aint->val, 2);
+}
+
+long lemniAIntToLong(LemniAIntConst aint){
+	return mpz_get_si(aint->val);
+}
+
+unsigned long lemniAIntToULong(LemniAIntConst aint){
+	return mpz_get_ui(aint->val);
+}
+
+void lemniAIntStr(LemniAIntConst aint, void *user, LemniAIntStrCB cb){
+	auto size = mpz_sizeinbase(aint->val, 10) + 2;
+	auto chars = std::make_unique<char[]>(size);
+	std::memset(chars.get(), 0, size);
+	mpz_get_str(chars.get(), 10, aint->val);
+	cb(user, {chars.get(), strnlen(chars.get(), size-1)});
+}
+
 void lemniAIntAdd(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs){
 	mpz_add(res->val, lhs->val, rhs->val);
 }
@@ -102,4 +121,8 @@ void lemniAIntNeg(LemniAInt res, LemniAIntConst val){
 
 void lemniAIntAbs(LemniAInt res, LemniAIntConst val){
 	mpz_abs(res->val, val->val);
+}
+
+int lemniAIntCmp(LemniAIntConst lhs, LemniAIntConst rhs){
+	return mpz_cmp(lhs->val, rhs->val);
 }

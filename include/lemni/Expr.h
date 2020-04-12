@@ -19,6 +19,7 @@
 #ifndef LEMNI_EXPR_H
 #define LEMNI_EXPR_H 1
 
+#include "Location.h"
 #include "Str.h"
 #include "AReal.h"
 #include "Operator.h"
@@ -34,11 +35,24 @@ extern "C" {
 
 typedef const struct LemniExprT *LemniExpr;
 
-typedef const struct LemniRefExprT *LemniRefExpr;
+/* RValue expression types */
 
 typedef const struct LemniApplicationExprT *LemniApplicationExpr;
 
+typedef const struct LemniUnaryOpExprT *LemniUnaryOpExpr;
+typedef const struct LemniBinaryOpExprT *LemniBinaryOpExpr;
+
+typedef const struct LemniBlockExprT *LemniBlockExpr;
+typedef const struct LemniReturnExprT *LemniReturnExpr;
+
 typedef const struct LemniLiteralExprT *LemniLiteralExpr;
+
+typedef const struct LemniTupleExprT *LemniTupleExpr;
+
+typedef const struct LemniLambdaExprT *LemniLambdaExpr;
+
+typedef const struct LemniCommaListExprT *LemniCommaListExpr;
+
 typedef const struct LemniConstantExprT *LemniConstantExpr;
 
 typedef const struct LemniUnitExprT *LemniUnitExpr;
@@ -50,20 +64,25 @@ typedef const struct LemniIntExprT *LemniIntExpr;
 
 typedef const struct LemniStrExprT *LemniStrExpr;
 
-typedef const struct LemniCommaListExprT *LemniCommaListExpr;
-typedef const struct LemniUnaryOpExprT *LemniUnaryOpExpr;
-typedef const struct LemniBinaryOpExprT *LemniBinaryOpExpr;
+/* LValue expression types */
+
+typedef const struct LemniLValueExprT *LemniLValueExpr;
+
+typedef const struct LemniRefExprT *LemniRefExpr;
 
 typedef const struct LemniFnDefExprT *LemniFnDefExpr;
-typedef const struct LemniLambdaExprT *LemniLambdaExpr;
 
-typedef const struct LemniBlockExprT *LemniBlockExpr;
-typedef const struct LemniReturnExprT *LemniReturnExpr;
+typedef const struct LemniBindingExprT *LemniBindingExpr;
 
-LemniStr lemniExprStr(LemniExpr expr);
+typedef const struct LemniAssignmentExprT *LemniAssigmentExpr;
 
-LemniRefExpr lemniExprAsRef(LemniExpr expr);
-LemniExpr lemniRefExprBase(LemniRefExpr ref);
+LemniLocation lemniExprLoc(LemniExpr expr);
+
+LemniLValueExpr lemniExprAsLValue(LemniExpr expr);
+LemniExpr lemniLValueExprBase(LemniLValueExpr lvalue);
+
+LemniRefExpr lemniLValueExprAsRef(LemniLValueExpr expr);
+LemniLValueExpr lemniRefExprBase(LemniRefExpr ref);
 LemniStr lemniRefExprId(LemniRefExpr ref);
 
 LemniApplicationExpr lemniExprAsApplication(LemniExpr expr);
@@ -74,6 +93,11 @@ LemniExpr lemniApplicationExprArg(LemniApplicationExpr app, const uint32_t idx);
 
 LemniLiteralExpr lemniExprAsLiteral(LemniExpr expr);
 LemniExpr lemniLiteralExprBase(LemniLiteralExpr lit);
+
+LemniTupleExpr lemniLiteralExprAsTuple(LemniLiteralExpr lit);
+LemniLiteralExpr lemniTupleExprBase(LemniTupleExpr tuple);
+uint64_t lemniTupleExprNumElements(LemniTupleExpr tuple);
+LemniExpr lemniTupleExprElement(LemniTupleExpr tuple, const uint64_t idx);
 
 LemniConstantExpr lemniLiteralExprAsConstant(LemniLiteralExpr lit);
 LemniLiteralExpr lemniConstantExprBase(LemniConstantExpr constant);
@@ -116,8 +140,8 @@ LemniBinaryOp lemniBinaryOpExprOp(LemniBinaryOpExpr binaryOp);
 LemniExpr lemniBinaryOpExprLhs(LemniBinaryOpExpr binaryOp);
 LemniExpr lemniBinaryOpExprRhs(LemniBinaryOpExpr binaryOp);
 
-LemniFnDefExpr lemniExprAsFnDef(LemniExpr expr);
-LemniExpr lemniFnDefExprBase(LemniFnDefExpr fnDef);
+LemniFnDefExpr lemniLValueExprAsFnDef(LemniLValueExpr expr);
+LemniLValueExpr lemniFnDefExprBase(LemniFnDefExpr fnDef);
 LemniStr lemniFnDefExprName(LemniFnDefExpr fnDef);
 uint32_t lemniFnDefExprNumParams(LemniFnDefExpr fnDef);
 LemniExpr lemniFnDefExprParam(LemniFnDefExpr fnDef, const uint32_t idx);
@@ -149,7 +173,11 @@ LemniExpr lemniReturnExprValue(LemniReturnExpr return_);
 #define LEMNI_ALIAS_FN(name, alias) inline constexpr auto &&alias = name
 
 namespace lemni{
-	LEMNI_ALIAS_FN(lemniExprAsRef, exprAsRef);
+	using Expr = LemniExpr;
+
+	LEMNI_ALIAS_FN(lemniExprAsLValue, exprAsLValue);
+
+	LEMNI_ALIAS_FN(lemniLValueExprAsRef, lvalueExprAsRef);
 	LEMNI_ALIAS_FN(lemniRefExprBase, refExprBase);
 	LEMNI_ALIAS_FN(lemniRefExprId, refExprId);
 
@@ -194,7 +222,7 @@ namespace lemni{
 	LEMNI_ALIAS_FN(lemniBinaryOpExprLhs, binaryOpExprLhs);
 	LEMNI_ALIAS_FN(lemniBinaryOpExprRhs, binaryOpExprRhs);
 
-	LEMNI_ALIAS_FN(lemniExprAsFnDef, exprAsFnDef);
+	LEMNI_ALIAS_FN(lemniLValueExprAsFnDef, lvalueExprAsFnDef);
 	LEMNI_ALIAS_FN(lemniFnDefExprBase, fnDefExprBase);
 	LEMNI_ALIAS_FN(lemniFnDefExprName, fnDefExprName);
 	LEMNI_ALIAS_FN(lemniFnDefExprNumParams, fnDefExprNumParams);

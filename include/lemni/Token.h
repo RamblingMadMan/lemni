@@ -59,6 +59,12 @@ typedef struct {
 
 #ifdef __cplusplus
 }
-#endif
+
+#ifndef LEMNI_NO_CPP
+namespace lemni{
+	using Token = LemniToken;
+}
+#endif // !LEMNI_NO_CPP
+#endif // __cplusplus
 
 #endif // !LEMNI_TOKEN_H

@@ -24,20 +24,20 @@
 #include "AInt.hpp"
 #include "ARatio.hpp"
 
-namespace {
-	LemniARatio createARatio(){
-		auto mem = std::malloc(sizeof(LemniARatioT));
-		return new(mem) LemniARatioT;
-	}
-}
-
 LemniARatio lemniCreateARatio(void){
 	auto p = createARatio();
 	mpq_init(p->val);
 	return p;
 }
 
-LemniARatio lemniCreateARatioStr(LemniStr str, const int base){
+LemniARatio lemniCreateARatioCopy(LemniARatioConst other){
+	auto p = createARatio();
+	mpq_init(p->val);
+	mpq_set(p->val, other->val);
+	return p;
+}
+
+LemniARatio lemniCreateARatioStr(const LemniStr str, const int base){
 	auto p = createARatio();
 	std::string cstr(str.ptr, str.len);
 	mpq_init(p->val);
@@ -67,10 +67,70 @@ LemniARatio lemniCreateARatioULong(const unsigned long num, const unsigned long 
 	return p;
 }
 
+LemniARatio lemniCreateARatioFrom32(const LemniRatio32 q32){
+	auto p = createARatio();
+	mpq_init(p->val);
+	mpq_set_si(p->val, q32.num, q32.den);
+	return p;
+}
+
+LemniARatio lemniCreateARatioFrom64(const LemniRatio64 q64){
+	auto p = createARatio();
+	mpq_init(p->val);
+	mpq_set_si(p->val, q64.num, q64.den);
+	return p;
+}
+
+LemniARatio lemniCreateARatioFrom128(const LemniRatio128 q128){
+	auto p = createARatio();
+	mpq_init(p->val);
+	mpq_set_si(p->val, q128.num, q128.den);
+	return p;
+}
+
+LemniARatio lemniCreateARatioFrom64(const LemniRatio64 q64);
+
+LemniARatio lemniCreateARatioFrom128(const LemniRatio128 q128);
+
 void lemniDestroyARatio(LemniARatio aratio){
 	mpq_clear(aratio->val);
 	std::destroy_at(aratio);
 	std::free(aratio);
+}
+
+void lemniARatioSet(LemniARatio res, LemniARatioConst other){
+	mpq_set(res->val, other->val);
+}
+
+LemniARatioNumBitsResult lemniARatioNumBits(LemniARatioConst aratio){
+	size_t numBits = mpz_sizeinbase(mpq_numref(aratio->val), 2);
+	size_t denBits = mpz_sizeinbase(mpq_denref(aratio->val), 2);
+	return { numBits + 1, denBits };
+}
+
+void lemniARatioStr(LemniARatioConst aratio, void *user, LemniARatioStrCB cb){
+	mpq_canonicalize(const_cast<LemniARatio>(aratio)->val);
+	auto lhsSize = mpz_sizeinbase(mpq_numref(aratio->val), 10) + 2;
+	auto rhsSize = mpz_sizeinbase(mpq_denref(aratio->val), 10) + 1;
+	auto chars = std::make_unique<char[]>(lhsSize + rhsSize + 1);
+	mpz_get_str(chars.get(), lhsSize, mpq_numref(aratio->val));
+	lhsSize = strnlen(chars.get(), lhsSize - 1);
+	chars.get()[lhsSize++] = '/';
+	mpz_get_str(chars.get() + lhsSize, rhsSize, mpq_denref(aratio->val));
+	rhsSize = strnlen(chars.get() + lhsSize, rhsSize - 1);
+	cb(user, {chars.get(), lhsSize + rhsSize});
+}
+
+LemniAInt lemniARatioNum(LemniARatioConst aratio){
+	auto aint = createAInt();
+	mpz_init_set(aint->val, mpq_numref(aratio->val));
+	return aint;
+}
+
+LemniAInt lemniARatioDen(LemniARatioConst aratio){
+	auto aint = createAInt();
+	mpz_init_set(aint->val, mpq_denref(aratio->val));
+	return aint;
 }
 
 void lemniARatioAdd(LemniARatio res, LemniARatioConst lhs, LemniARatioConst rhs){
@@ -99,4 +159,8 @@ void lemniARatioNeg(LemniARatio res, LemniARatioConst val){
 
 void lemniARatioAbs(LemniARatio res, LemniARatioConst val){
 	mpq_abs(res->val, val->val);
+}
+
+int lemniARatioCmp(LemniARatioConst lhs, LemniARatioConst rhs){
+	return mpq_cmp(lhs->val, rhs->val);
 }

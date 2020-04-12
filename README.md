@@ -6,7 +6,7 @@ Lemni is a functional programming language I created for the hell of it. It is d
 
 ## Library
 
-Included is a library for lexing, parsing, evaluating and compiling lemni source code. It has a C11 API with C++17 wrappers. It is implemented in C++17.
+Included is a library for lexing, parsing, evaluating and compiling lemni source code. It has a C11 API with C++20 wrappers. It is implemented in C++20.
 
 For an example of lexing and parsing take a look at `testall/main.cpp`.
 

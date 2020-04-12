@@ -21,19 +21,24 @@
 
 #include "Token.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @defgroup Lexing Lexing related types and functions.
  * @{
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Opaque type representing lex state.
  */
 typedef struct LemniLexStateT *LemniLexState;
+
+/**
+ * @brief Const reference to opaque lex state
+ */
+typedef const struct LemniLexStateT *const LemniConstLexState;
 
 /**
  * @brief Type representing a lexing error.
@@ -76,14 +81,14 @@ void lemniDestroyLexState(LemniLexState state);
  * @param state the state to check
  * @returns the remaining lex state string
  */
-LemniStr lemniLexStateRemainder(LemniLexState state);
+LemniStr lemniLexStateRemainder(LemniConstLexState state);
 
 /**
  * @brief Get the location that will be given to the next token lexed in \p state .
  * @param state the state to check
  * @returns the next token location
  */
-LemniLocation lemniLexStateNextLocation(LemniLexState state);
+LemniLocation lemniLexStateNextLocation(LemniConstLexState state);
 
 /**
  * @brief Lex a single token from \p state .
@@ -91,10 +96,6 @@ LemniLocation lemniLexStateNextLocation(LemniLexState state);
  * @returns the result of the parsing operation
  */
 LemniLexResult lemniLex(LemniLexState state);
-
-/**
- * @}
- */
 
 #ifdef __cplusplus
 }
@@ -105,7 +106,6 @@ LemniLexResult lemniLex(LemniLexState state);
 #include <vector>
 
 namespace lemni{
-	using Token = LemniToken;
 	using LexError = LemniLexError;
 
 	class LexState{
@@ -113,7 +113,35 @@ namespace lemni{
 			LexState(std::string_view str, LemniLocation startLoc = LemniLocation{0, 0})
 				: m_state(lemniCreateLexState(LemniStr{str.data(), str.size()}, startLoc)){}
 
-			~LexState(){ lemniDestroyLexState(m_state); }
+			LexState(LexState &&other) noexcept
+				: m_state(other.m_state)
+			{
+				other.m_state = nullptr;
+			}
+
+			LexState(const LexState&) = delete;
+
+			~LexState(){ if(m_state) lemniDestroyLexState(m_state); }
+
+			LexState &operator=(LexState &&other) noexcept{
+				m_state = other.m_state;
+				other.m_state = nullptr;
+				return *this;
+			}
+
+			LexState &operator=(const LexState&) = delete;
+
+			std::string_view remainder() const noexcept{
+				if(!m_state) return {};
+				auto str = lemniLexStateRemainder(m_state);
+				return {str.ptr, str.len};
+			}
+
+			Location nextLocation() const noexcept{
+				using pos_t = decltype(Location::col);
+				if(!m_state) return { std::numeric_limits<pos_t>::max(), std::numeric_limits<pos_t>::max() };
+				return lemniLexStateNextLocation(m_state);
+			}
 
 		private:
 			LemniLexState m_state;
@@ -151,5 +179,9 @@ namespace lemni{
 }
 #endif // !LEMNI_NO_CPP
 #endif // __cplusplus
+
+/**
+ * @}
+ */
 
 #endif // !LEMNI_LEX_H

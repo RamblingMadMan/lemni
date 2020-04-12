@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @defgroup Operators Types and functions related to unary and binary operators.
@@ -88,6 +89,13 @@ LemniBinaryOp lemniBinaryOpFromStr(LemniStr str);
  * @returns the precedence of \p op or ``UINT32_MAX`` if not recognized.
  */
 uint32_t lemniBinaryOpPrecedence(LemniBinaryOp op);
+
+/**
+ * @brief Check if a binary operator is logical/boolean
+ * @param op the operator to check
+ * @returns whether the operator returns a boolean value
+ */
+bool lemniBinaryOpIsLogic(LemniBinaryOp op);
 
 /**
  * @}

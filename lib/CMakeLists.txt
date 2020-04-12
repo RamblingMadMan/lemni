@@ -15,7 +15,13 @@ set(
 	Expr.hpp
 	Expr.cpp
 	parse.cpp
+	Type.hpp
 	Type.cpp
+	TypedExpr.hpp
+	typecheck.cpp
+	Interop.cpp
+	Value.cpp
+	eval.cpp
 )
 
 add_library(lemni SHARED ${LEMNI_HEADERS} ${LEMNI_LIB_SOURCES})

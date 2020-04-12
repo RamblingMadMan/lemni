@@ -19,6 +19,8 @@
 #ifndef LEMNI_LIB_ARATIO_HPP
 #define LEMNI_LIB_ARATIO_HPP 1
 
+#include <cstdlib>
+
 #include "gmp.h"
 
 #include "lemni/ARatio.h"
@@ -26,5 +28,12 @@
 struct LemniARatioT{
 	mpq_t val;
 };
+
+namespace {
+	inline LemniARatio createARatio(){
+		auto mem = std::malloc(sizeof(LemniARatioT));
+		return new(mem) LemniARatioT;
+	}
+}
 
 #endif // !LEMNI_LIB_ARATIO_HPP

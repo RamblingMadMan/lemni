@@ -31,6 +31,12 @@ typedef struct {
 
 #ifdef __cplusplus
 }
-#endif
+
+#ifndef LEMNI_NO_CPP
+namespace lemni{
+	using Location = LemniLocation;
+}
+#endif // !LEMNI_NO_CPP
+#endif // __cplusplus
 
 #endif // !LEMNI_LOCATION_H

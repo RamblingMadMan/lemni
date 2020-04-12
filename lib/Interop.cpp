@@ -16,22 +16,26 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef LEMNI_LIB_AINT_HPP
-#define LEMNI_LIB_AINT_HPP 1
+#include <numeric>
 
-#include "gmp.h"
+#include "lemni/Interop.h"
 
-#include "lemni/AInt.h"
-
-struct LemniAIntT{
-	mpz_t val;
-};
-
-namespace {
-	inline LemniAInt createAInt(){
-		auto mem = std::malloc(sizeof(LemniAIntT));
-		return new(mem) LemniAIntT;
+template<typename Ratio>
+static inline Ratio simplifyRatio(Ratio q){
+	auto n = std::gcd(q.num, q.den);
+	if(n != 1){
+		q.num /= n;
+		q.den /= n;
 	}
+
+	if(q.den < 0){
+		q.num *= -1;
+		q.den *= -1;
+	}
+
+	return q;
 }
 
-#endif // !LEMNI_LIB_AINT_HPP
+LemniRatio32 lemniSimplifyRatio32(const LemniRatio32 q32){ return simplifyRatio(q32); }
+LemniRatio64 lemniSimplifyRatio64(const LemniRatio64 q64){ return simplifyRatio(q64); }
+LemniRatio128 lemniSimplifyRatio128(const LemniRatio128 q128){ return simplifyRatio(q128); }

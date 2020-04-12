@@ -21,21 +21,24 @@
 
 #include "Str.h"
 
+/**
+ * @defgroup Types Type info related types and functions.
+ * @{
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stdint.h>
 
-/**
- * @defgroup Types Type checking related types and functions.
- * @{
- */
-
 typedef const struct LemniTypeT *LemniType;
+
+typedef const struct LemniPseudoTypeT *LemniPseudoType;
 
 typedef const struct LemniTopTypeT *LemniTopType;
 typedef const struct LemniBottomTypeT *LemniBottomType;
+typedef const struct LemniMetaTypeT *LemniMetaType;
 typedef const struct LemniUnitTypeT *LemniUnitType;
 typedef const struct LemniBoolTypeT *LemniBoolType;
 
@@ -49,7 +52,10 @@ typedef const struct LemniStringTypeT *LemniStringType;
 typedef const struct LemniStringUTF8TypeT *LemniStringUTF8Type;
 typedef const struct LemniStringASCIITypeT *LemniStringASCIIType;
 
+typedef const struct LemniArrayTypeT *LemniArrayType;
+
 typedef const struct LemniFunctionTypeT *LemniFunctionType;
+typedef const struct LemniClosureTypeT *LemniClosureType;
 
 typedef const struct LemniSumTypeT *LemniSumType;
 typedef const struct LemniProductTypeT *LemniProductType;
@@ -71,6 +77,14 @@ LemniType lemniTopAsType(LemniTopType top);
 LemniBottomType lemniTypeAsBottom(LemniType type);
 LemniTopType lemniBottomTypeBase(LemniBottomType bottom);
 LemniType lemniBottomAsType(LemniBottomType bottom);
+
+LemniPseudoType lemniTypeAsPseudo(LemniType type);
+LemniTopType lemniPseudoTypeBase(LemniPseudoType pseudo);
+LemniType lemniPseudoAsType(LemniPseudoType pseudo);
+
+LemniMetaType lemniTypeAsMeta(LemniType type);
+LemniTopType lemniMetaTypeBase(LemniMetaType meta);
+LemniType lemniMetaAsType(LemniMetaType meta);
 
 LemniUnitType lemniTypeAsUnit(LemniType type);
 LemniTopType lemniUnitTypeBase(LemniUnitType unit);
@@ -114,12 +128,24 @@ LemniStringType lemniStringASCIITypeBase(LemniStringASCIIType strA);
 LemniStringUTF8Type lemniTypeAsStringUTF8(LemniType type);
 LemniStringASCIIType lemniStringUTF8TypeBase(LemniStringUTF8Type strU);
 
+LemniArrayType lemniTypeAsArray(LemniType type);
+LemniTopType lemniArrayTypeBase(LemniArrayType arr);
+LemniType lemniArrayTypeElements(LemniArrayType arr);
+uint32_t lemniArrayTypeNumElements(LemniArrayType arr);
+LemniType lemniArrayTypeAsType(LemniArrayType arr);
+
 LemniFunctionType lemniTypeAsFunction(LemniType type);
 LemniTopType lemniFunctionTypeBase(LemniFunctionType fn);
 LemniType lemniFunctionTypeResult(LemniFunctionType fn);
 uint32_t lemniFunctionTypeNumParams(LemniFunctionType fn);
 LemniType lemniFunctionTypeParam(LemniFunctionType fn, const uint32_t idx);
 LemniType lemniFunctionAsType(LemniFunctionType fn);
+
+LemniClosureType lemniTypeAsClosure(LemniType type);
+LemniFunctionType lemniClosureTypeBase(LemniClosureType closure);
+uint32_t lemniClosureTypeNumClosed(LemniClosureType closure);
+LemniType lemniClosureTypeClosed(LemniClosureType closure, const uint32_t idx);
+LemniType lemniClosureAsType(LemniClosureType closure);
 
 LemniSumType lemniTypeAsSum(LemniType type);
 LemniTopType lemniSumTypeBase(LemniSumType sum);
@@ -138,6 +164,69 @@ LemniTopType lemniRecordTypeBase(LemniRecordType record);
 uint32_t lemniRecordTypeNumFields(LemniRecordType record);
 const LemniRecordTypeField *lemniRecordTypeField(LemniRecordType record, const uint32_t idx);
 LemniType lemniRecordAsType(LemniRecordType record);
+
+/**
+ * @defgroup TypeCategories Type category related types and functions.
+ * @{
+ */
+
+#define LEMNI_DEF_TYPE_CATEGORY(name) LEMNI_TYPE_##name = (1 << (__COUNTER__ - LEMNI_TYPE_CATEGORY_BASE))
+
+typedef enum {
+	LEMNI_TYPE_CATEGORY_BASE = __COUNTER__,
+
+	LEMNI_DEF_TYPE_CATEGORY(UNIT),
+	LEMNI_DEF_TYPE_CATEGORY(NATURAL),
+	LEMNI_DEF_TYPE_CATEGORY(INTEGRAL),
+	LEMNI_DEF_TYPE_CATEGORY(RATIONAL),
+	LEMNI_DEF_TYPE_CATEGORY(REAL),
+	LEMNI_DEF_TYPE_CATEGORY(TEXTUAL),
+	LEMNI_DEF_TYPE_CATEGORY(CALLABLE),
+	LEMNI_DEF_TYPE_CATEGORY(ARRAY),
+	LEMNI_DEF_TYPE_CATEGORY(SUM),
+	LEMNI_DEF_TYPE_CATEGORY(PRODUCT),
+	LEMNI_DEF_TYPE_CATEGORY(RECORD),
+
+	LEMNI_TYPE_CATEGORY_COUNT = 0xFFFFFFFF
+} LemniTypeCategory;
+
+#undef LEMNI_DEF_TYPE_CATEGORY
+
+/**
+ * @brief Check if \p type has the categories set in \p bitmask .
+ * @param type type to check
+ * @param bitmask bitmask of ``LemniTypeCategory``'s
+ * @returns bitmask containing the matching categories
+ */
+uint32_t lemniTypeHasCategories(LemniType type, const uint32_t bitmask);
+
+inline bool lemniTypeIsArithmetic(LemniType type){
+	static const uint32_t flags = LEMNI_TYPE_NATURAL | LEMNI_TYPE_INTEGRAL | LEMNI_TYPE_RATIONAL | LEMNI_TYPE_REAL;
+	return lemniTypeHasCategories(type, flags);
+}
+
+/**
+ * @brief Check if a type has the texture, callable, array, list, sum, product or record category.
+ * @param type type to check
+ * @returns if the type is compound
+ */
+inline bool lemniTypeIsCompound(LemniType type){
+	static const uint32_t flags = LEMNI_TYPE_TEXTUAL | LEMNI_TYPE_CALLABLE | LEMNI_TYPE_ARRAY | LEMNI_TYPE_SUM | LEMNI_TYPE_PRODUCT | LEMNI_TYPE_RECORD;
+	return lemniTypeHasCategories(type, flags);
+}
+
+/**
+ * @brief Check if a type is not compound
+ * @param type type to check
+ * @returns if the type is a scalar
+ */
+inline bool lemniTypeIsScalar(LemniType type){
+	return !lemniTypeIsCompound(type);
+}
+
+/**
+ * @}
+ */
 
 /**
  * @defgroup TypeSet Types and functions for containing a set of types.
@@ -165,6 +254,8 @@ void lemniDestroyTypeSet(LemniTypeSet types);
 
 LemniTopType lemniTypeSetGetTop(LemniTypeSet types);
 LemniBottomType lemniTypeSetGetBottom(LemniTypeSet types);
+LemniPseudoType lemniTypeSetGetPseudo(LemniTypeSet types, const uint32_t categoryMask);
+LemniMetaType lemniTypeSetGetMeta(LemniTypeSet types);
 LemniUnitType lemniTypeSetGetUnit(LemniTypeSet types);
 LemniBoolType lemniTypeSetGetBool(LemniTypeSet types);
 
@@ -178,17 +269,35 @@ LemniStringType lemniTypeSetGetString(LemniTypeSet types);
 LemniStringASCIIType lemniTypeSetGetStringASCII(LemniTypeSet types);
 LemniStringUTF8Type lemniTypeSetGetStringUTF8(LemniTypeSet types);
 
-LemniSumType lemniTypeSetGetSum(LemniTypeSet types, LemniType *const cases, const uint32_t numCases);
-
-LemniProductType lemniTypeSetGetProduct(LemniTypeSet types, LemniType *const components, const uint32_t numComponents);
-
-LemniRecordType lemniTypeSetGetRecord(LemniTypeSet types, const LemniRecordTypeField *const fields, const uint32_t numFields);
+LemniArrayType lemniTypeSetGetArray(LemniTypeSet types, const uint64_t numElements, LemniType elementType);
 
 LemniFunctionType lemniTypeSetGetFunction(LemniTypeSet types, LemniType result, LemniType *const params, const uint32_t numParams);
+LemniClosureType lemniTypeSetGetClosure(LemniTypeSet types, LemniFunctionType fn, LemniType *const closed, const uint64_t numClosed);
+
+LemniSumType lemniTypeSetGetSum(LemniTypeSet types, LemniType *const cases, const uint64_t numCases);
+
+LemniProductType lemniTypeSetGetProduct(LemniTypeSet types, LemniType *const components, const uint64_t numComponents);
+
+LemniRecordType lemniTypeSetGetRecord(LemniTypeSet types, const LemniRecordTypeField *const fields, const uint64_t numFields);
 
 /**
  * @}
  */
+
+/**
+ * @defgroup TypeManipulation Type manipulation related functions
+ * @{
+ */
+
+/**
+ * @brief Get the signed version of a numeric type (``Nat -> Int``).
+ * @note Natural types will be promoted to the next power of 2 bitwidth to accomodate 2's complement representation.
+ * @param types type set to get types from
+ * @param type the type to make signed
+ * @returns the signed version of the type, or ``NULL`` if \p type is non-numeric
+ */
+LemniType lemniTypeMakeSigned(LemniTypeSet types, LemniType type);
+LemniType lemniTypePromote(LemniTypeSet types, LemniType a, LemniType b);
 
 /**
  * @}
@@ -204,6 +313,7 @@ LemniFunctionType lemniTypeSetGetFunction(LemniTypeSet types, LemniType result, 
 
 namespace lemni{
 	using Type = LemniType;
+	using RecordTypeField = LemniRecordTypeField;
 
 	class TypeSet{
 		public:
@@ -211,6 +321,44 @@ namespace lemni{
 			~TypeSet(){ lemniDestroyTypeSet(types); }
 
 			LemniTypeSet handle() noexcept{ return types; }
+
+			LemniPseudoType pseudo(const LemniTypeCategory categories) const noexcept{ return lemniTypeSetGetPseudo(types, categories); }
+
+			LemniTopType top() const noexcept{ return lemniTypeSetGetTop(types); }
+			LemniBottomType bottom() const noexcept{ return lemniTypeSetGetBottom(types); }
+			LemniMetaType meta() const noexcept{ return lemniTypeSetGetMeta(types); }
+			LemniUnitType unit() const noexcept{ return lemniTypeSetGetUnit(types); }
+			LemniBoolType bool_() const noexcept{ return lemniTypeSetGetBool(types); }
+
+			LemniNumberType number() const noexcept{ return lemniTypeSetGetNumber(types); }
+			LemniNatType natural(const uint32_t numBits = 0) const noexcept{ return lemniTypeSetGetNat(types, numBits); }
+			LemniIntType integer(const uint32_t numBits = 0) const noexcept{ return lemniTypeSetGetInt(types, numBits); }
+			LemniRatioType rational(const uint32_t numBits = 0) const noexcept{ return lemniTypeSetGetRatio(types, numBits); }
+			LemniRealType real(const uint32_t numBits = 0) const noexcept{ return lemniTypeSetGetReal(types, numBits); }
+
+			LemniStringType string() const noexcept{ return lemniTypeSetGetString(types); }
+			LemniStringASCIIType stringASCII() const noexcept{ return lemniTypeSetGetStringASCII(types); }
+			LemniStringUTF8Type stringUTF8() const noexcept{ return lemniTypeSetGetStringUTF8(types); }
+
+			LemniArrayType array(const uint64_t numElements, Type elementType) const noexcept{ return lemniTypeSetGetArray(types, numElements, elementType); }
+
+			LemniFunctionType function(Type resultType, Type *const paramTypes, const uint32_t numParams) const noexcept{
+				return lemniTypeSetGetFunction(types, resultType, paramTypes, numParams);
+			}
+
+			LemniClosureType closure(LemniFunctionType fnType, Type *const closedTypes, const uint32_t numClosed) const noexcept{
+				return lemniTypeSetGetClosure(types, fnType, closedTypes, numClosed);
+			}
+
+			LemniSumType sum(Type *const caseTypes, const uint32_t numCases) const noexcept{ return lemniTypeSetGetSum(types, caseTypes, numCases); }
+
+			LemniProductType product(Type *const componentTypes, const uint32_t numComponents) const noexcept{
+				return lemniTypeSetGetProduct(types, componentTypes, numComponents);
+			}
+
+			LemniRecordType record(const RecordTypeField *const fields, const uint32_t numFields) const noexcept{
+				return lemniTypeSetGetRecord(types, fields, numFields);
+			}
 
 		private:
 			LemniTypeSet types;
@@ -293,5 +441,9 @@ namespace lemni{
 }
 #endif // !LEMNI_NO_CPP
 #endif // __cplusplus
+
+/**
+ * @}
+ */
 
 #endif // !LEMNI_TYPE_H

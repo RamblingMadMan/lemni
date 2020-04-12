@@ -22,14 +22,14 @@
 #include "Token.h"
 #include "Expr.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @defgroup Parsing Parsing related types and functions.
  * @{
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Opaque type representing parse state.
@@ -93,14 +93,11 @@ size_t lemniParseStateNumTokens(LemniParseState state);
  */
 LemniParseResult lemniParse(LemniParseState state);
 
-/**
- * @}
- */
-
 #ifdef __cplusplus
 }
 
 #ifndef LEMNI_NO_CPP
+#include <vector>
 #include <variant>
 
 namespace lemni{
@@ -112,7 +109,23 @@ namespace lemni{
 			ParseState(const LemniToken *const tokens, const size_t n)
 				: m_state(lemniCreateParseState(tokens, n)){}
 
-			~ParseState(){ lemniDestroyParseState(m_state); }
+			ParseState(ParseState &&other) noexcept
+				: m_state(other.m_state)
+			{
+				other.m_state = nullptr;
+			}
+
+			ParseState(const ParseState&) = delete;
+
+			~ParseState(){ if(m_state) lemniDestroyParseState(m_state); }
+
+			ParseState &operator=(ParseState &&other) noexcept{
+				m_state = other.m_state;
+				other.m_state = nullptr;
+				return *this;
+			}
+
+			ParseState &operator=(const ParseState&) = delete;
 
 		private:
 			LemniParseState m_state;
@@ -125,8 +138,32 @@ namespace lemni{
 		if(res.hasError) return res.error;
 		else return res.expr;
 	}
+
+	inline std::variant<std::pair<ParseState, std::vector<Expr>>, ParseError> parseAll(const std::vector<LemniToken> &toks){
+		auto state = ParseState(toks.data(), toks.size());
+		std::vector<Expr> exprs;
+		exprs.reserve(toks.size());
+
+		while(1){
+			auto res = parse(state);
+
+			if(auto err = std::get_if<ParseError>(&res))
+				return *err;
+			else{
+				auto expr = *std::get_if<Expr>(&res);
+				if(!expr) break;
+				else exprs.emplace_back(expr);
+			}
+		}
+
+		return std::make_pair(std::move(state), std::move(exprs));
+	}
 }
 #endif // !LEMNI_NO_CPP
 #endif // __cplusplus
+
+/**
+ * @}
+ */
 
 #endif // !LEMNI_PARSE_H

@@ -4,9 +4,11 @@
 
 #include "lemni/lex.h"
 #include "lemni/parse.h"
+#include "lemni/Value.h"
 
 constexpr char testStr[] =
-R"(f(x) = 2 * x
+R"(f(x) = (2 * x)
+(1, 2, 3, 4)
 World
 )";
 
@@ -28,17 +30,48 @@ std::vector<lemni::Token> lexAll(std::string_view src){
 bool handleExpr(lemni::Expr expr){
 	if(!expr) return true;
 
-	if(auto fnDef = lemni::exprAsFnDef(expr)){
-		auto name = lemni::fnDefExprName(fnDef);
-		std::cout << "Fn def '" << name << "'\n";
+	if(auto lvalue = lemni::exprAsLValue(expr)){
+		if(auto fnDef = lemni::lvalueExprAsFnDef(lvalue)){
+			auto name = lemni::fnDefExprName(fnDef);
+			std::cout << "Fn def '" << name << "'\n";
+		}
 	}
 
 	return false;
 }
 
+void testValues(){
+	using lemni::interop::unit;
+	using lemni::Value;
+
+	Value a(6);
+	Value b(3);
+	Value c = a / b;
+
+	std::cout << a.toString() << " / " << b.toString() << " == " << c.toString() << '\n';
+
+	a = Value(unit);
+	b = Value(true);
+
+	try{
+		//c = a + b;
+	}
+	catch(const std::runtime_error &e){
+		// good
+		std::cerr << e.what() << '\n';
+	}
+	catch(...){
+		throw;
+	}
+
+	std::cout << a.toString() << " + " << b.toString() << " == UNDEFINED\n";
+}
+
 int main(int argc, char *argv[]){
 	(void)argc;
 	(void)argv;
+
+	testValues();
 
 	auto tokens = lexAll(testStr);
 

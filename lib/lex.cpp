@@ -58,11 +58,11 @@ void lemniDestroyLexState(LemniLexState state){
 	std::free(state);
 }
 
-LemniStr lemniLexStateRemainder(LemniLexState state){
+LemniStr lemniLexStateRemainder(LemniConstLexState state){
 	return state->remainder;
 }
 
-LemniLocation lemniLexStateNextLocation(LemniLexState state){
+LemniLocation lemniLexStateNextLocation(LemniConstLexState state){
 	return state->loc;
 }
 
