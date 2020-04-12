@@ -5,12 +5,18 @@ compiler: gcc
 
 addons:
   apt:
+    sources:
+      - ubuntu-toolchain-r-test
     packages:
       - cmake-data
       - cmake
       - libgmp-dev
       - libmpfr-dev
       - libicu-dev
+      - g++-9
+
+before_install:
+  - eval "CC=gcc-9 && CXX=g++-9"
 
 script:
   - mkdir build && cd build
