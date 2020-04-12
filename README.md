@@ -21,6 +21,7 @@ For an example of lexing and parsing take a look at `testall/main.cpp`.
 Taking for granted a bash-like shell, from the source dir run the following:
 
 ```bash
+git submodule update --init --recursive
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 cmake --build . -- -j4
