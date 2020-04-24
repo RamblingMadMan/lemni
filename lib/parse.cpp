@@ -335,6 +335,19 @@ namespace {
 		return std::make_pair(makeResult(binaryOp), rhsRet.second);
 	}
 
+	std::pair<LemniParseResult, const LemniToken*> parseUnaryOp(LemniParseState state, LemniLocation loc, const LemniToken *it, const LemniToken *const end, const LemniToken *opTok){
+		if(it == end){
+			return std::make_pair(makeError(state, loc, "Unexpected end of tokens after unary operator"), opTok);
+		}
+
+		LemniUnaryOp unaryOp = lemniUnaryOpFromStr(opTok->text);
+		if(unaryOp == LEMNI_UNARY_OP_UNRECOGNIZED){
+			return std::make_pair(makeError(state, loc, "Invalid unary op"), opTok);
+		}
+
+		return std::make_pair(makeError(state, loc, "Unary op lexing unimplemented"), opTok);
+	}
+
 	std::pair<LemniParseResult, const LemniToken*> parseApplication(LemniParseState state, LemniLocation loc, const LemniToken *it, const LemniToken *const end, LemniExpr fn){
 		auto argsRet = parseInner(state, it, end);
 
@@ -549,13 +562,17 @@ namespace {
 			auto idTok = it;
 			return parseId(state, ++it, end, idTok);
 		}
-		else if(it->type == LEMNI_TOKEN_INT){
+		else if(it->type == LEMNI_TOKEN_NAT){
 			auto intTok = it;
 			return parseInt(state, ++it, end, intTok);
 		}
 		else if(it->type == LEMNI_TOKEN_REAL){
 			auto realTok = it;
 			return parseReal(state, ++it, end, realTok);
+		}
+		else if(it->type == LEMNI_TOKEN_OP){
+			auto opTok = it;
+			return parseUnaryOp(state, opTok->loc, ++it, end, opTok);
 		}
 		else{
 			return std::make_pair(makeError(state, it->loc, "Parser mostly unimplemented, sorry :^/"), it);

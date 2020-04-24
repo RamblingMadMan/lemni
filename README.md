@@ -49,7 +49,7 @@ stripLeadingWs(name) =
 	res
 
 stripTrailingWs(name) =
-	if Chars.isSpace (last name) do
+	if Chars.isSpace (last name) then
 		stripTrailingWs (init name)
 	else
 		name

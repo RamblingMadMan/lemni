@@ -22,7 +22,7 @@ void lemniHighlightCb(std::string const& input, replxx::Replxx::colors_t& colors
 
 template<typename Error>
 void errorCallback(const Error &err){
-	std::fprintf(stderr, "[Error] %u.%u: %.*s\n", err.loc.line, err.loc.col, int(err.msg.len), err.msg.ptr);
+	std::fprintf(stderr, "[Error] %u.%u: %s\n", err.loc.line, err.loc.col, err.msg.ptr);
 }
 
 void typedCallback(replxx::Replxx &repl, lemni::EvalState &evalState, LemniTypeSet types, const std::pair<lemni::TypecheckState, std::vector<lemni::TypedExpr>> &p){
@@ -71,6 +71,9 @@ void tokensCallback(replxx::Replxx &repl, lemni::EvalState &evalState, LemniType
 }
 
 int main(int argc, char *argv[]){
+	(void)argc;
+	(void)argv;
+
 	replxx::Replxx repl;
 
 	repl.set_highlighter_callback(lemniHighlightCb);

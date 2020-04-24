@@ -114,7 +114,7 @@ namespace {
 		return makeResult(LemniToken{ .type = LEMNI_TOKEN_REAL, .text = str, .loc = loc });
 	}
 
-	LemniLexResult lexInt(LemniLexState state, LemniLocation loc, const char *const beg, const char *it, const char *const end){
+	LemniLexResult lexNat(LemniLexState state, LemniLocation loc, const char *const beg, const char *it, const char *const end){
 		while(it != end){
 			auto cp = utf8::peek_next(it, end);
 			if(cp == '.'){
@@ -164,7 +164,7 @@ namespace {
 			}
 		}
 
-		return makeResult(LemniToken{.type = LEMNI_TOKEN_INT, .text = str, .loc = loc});
+		return makeResult(LemniToken{.type = LEMNI_TOKEN_NAT, .text = str, .loc = loc});
 	}
 }
 
@@ -394,7 +394,7 @@ LemniLexResult lemniLex(LemniLexState state){
 	else if(u_isdigit(cp)){
 		auto beg = it;
 		utf8::advance(it, 1, end);
-		return lexInt(state, state->loc, beg, it, end);
+		return lexNat(state, state->loc, beg, it, end);
 	}
 	else if((cp == '_') || u_hasBinaryProperty(cp, UCHAR_ALPHABETIC)){
 		auto idLoc = state->loc;
