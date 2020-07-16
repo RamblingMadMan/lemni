@@ -12,6 +12,7 @@ addons:
       - cmake
       - libgmp-dev
       - libmpfr-dev
+      - libarb-dev
       - libicu-dev
       - g++-9
 
