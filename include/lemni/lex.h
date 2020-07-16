@@ -19,6 +19,7 @@
 #ifndef LEMNI_LEX_H
 #define LEMNI_LEX_H 1
 
+#include "Macros.h"
 #include "Token.h"
 
 /**
@@ -33,12 +34,16 @@ extern "C" {
 /**
  * @brief Opaque type representing lex state.
  */
-typedef struct LemniLexStateT *LemniLexState;
 
-/**
- * @brief Const reference to opaque lex state
- */
-typedef const struct LemniLexStateT *const LemniConstLexState;
+LEMNI_OPAQUE_T(LemniLexState);
+
+typedef struct LemniLexStateResultT{
+	bool hasError;
+	union {
+		LemniLexState state;
+		LemniStr errMsg;
+	};
+} LemniLexStateResult;
 
 /**
  * @brief Type representing a lexing error.
@@ -81,14 +86,14 @@ void lemniDestroyLexState(LemniLexState state);
  * @param state the state to check
  * @returns the remaining lex state string
  */
-LemniStr lemniLexStateRemainder(LemniConstLexState state);
+LemniStr lemniLexStateRemainder(LemniLexStateConst state);
 
 /**
  * @brief Get the location that will be given to the next token lexed in \p state .
  * @param state the state to check
  * @returns the next token location
  */
-LemniLocation lemniLexStateNextLocation(LemniConstLexState state);
+LemniLocation lemniLexStateNextLocation(LemniLexStateConst state);
 
 /**
  * @brief Lex a single token from \p state .
@@ -110,8 +115,11 @@ namespace lemni{
 
 	class LexState{
 		public:
-			LexState(std::string_view str, LemniLocation startLoc = LemniLocation{0, 0})
+			explicit LexState(std::string_view str, LemniLocation startLoc = LemniLocation{0, 0})
 				: m_state(lemniCreateLexState(LemniStr{str.data(), str.size()}, startLoc)){}
+
+			explicit LexState(LemniStr str, LemniLocation startLoc = LemniLocation{0, 0})
+				: LexState(lemni::toStdStrView(str), startLoc){}
 
 			LexState(LexState &&other) noexcept
 				: m_state(other.m_state)
@@ -130,6 +138,10 @@ namespace lemni{
 			}
 
 			LexState &operator=(const LexState&) = delete;
+
+			operator LemniLexState() noexcept{ return m_state; }
+
+			LemniLexState handle() noexcept{ return m_state; }
 
 			std::string_view remainder() const noexcept{
 				if(!m_state) return {};
@@ -176,6 +188,8 @@ namespace lemni{
 
 		return ret;
 	}
+
+	inline decltype(auto) lexAll(LemniStr str){ return lexAll(lemni::toStdStrView(str)); }
 }
 #endif // !LEMNI_NO_CPP
 #endif // __cplusplus

@@ -39,15 +39,15 @@ typedef struct LemniUnitT{
 	char _pad; // guarantee sizeof(LemniUnit) >= 1
 } LemniUnit;
 
-using LemniBool = bool;
+typedef bool LemniBool;
 
-using LemniNat16 = uint16_t;
-using LemniNat32 = uint32_t;
-using LemniNat64 = uint64_t;
+typedef uint16_t LemniNat16;
+typedef uint32_t LemniNat32;
+typedef uint64_t LemniNat64;
 
-using LemniInt16 = int16_t;
-using LemniInt32 = int32_t;
-using LemniInt64 = int64_t;
+typedef int16_t LemniInt16;
+typedef int32_t LemniInt32;
+typedef int64_t LemniInt64;
 
 typedef struct alignas(4) LemniRatio32T{
 	LemniInt16 num;
@@ -67,9 +67,25 @@ typedef struct alignas(16) LemniRatio128T{
 #ifndef __STDC_IEC_559__
 #error "Floating point types must be IEEE-754 compliant"
 #else
-using LemniReal32 = float;
-using LemniReal64 = double;
+typedef float LemniReal32;
+typedef double LemniReal64;
 #endif
+
+typedef LemniStr LemniStrUTF8;
+struct LemniStrASCII{ size_t len; const char *ptr; };
+
+/**
+ * @brief Generic functor type
+ *
+ * If a functor ``f`` is retrieved from an external source then
+ * the user must call ``f.dtor(f.env)`` once finished.
+ *
+ */
+typedef struct alignas(16) LemniFunctorT{
+	void(*dtor)(void*);
+	void(*fptr)();
+	void *env;
+} LemniFunctor;
 
 LemniRatio32 lemniSimplifyRatio32(const LemniRatio32 q32);
 LemniRatio64 lemniSimplifyRatio64(const LemniRatio64 q64);
@@ -148,8 +164,8 @@ namespace lemni::interop{
 		template<typename T>
 		concept Rational = IsRatioT<T>::value;
 
-		template<typename Lhs, typename Rhs>
-			requires Rational<Lhs> && Rational<Rhs>
+		template<Rational Lhs, Rational Rhs>
+			//requires Rational<Lhs> && Rational<Rhs>
 		constexpr inline auto addRatio(const Lhs lhs, const Rhs rhs){
 			constexpr auto LhsN = RatioTraits<Lhs>::numBits;
 			constexpr auto RhsN = RatioTraits<Rhs>::numBits;
@@ -213,6 +229,22 @@ namespace lemni::interop{
 
 			return PromotedQ{newNum, newDen};
 		}
+
+		template<typename...>
+		struct FnFunctorTypeT;
+
+		template<typename Ret, typename ... Params>
+		struct FnFunctorTypeT<Ret(Params...)>{
+			using type = Ret(*)(const void*, Params...);
+		};
+
+		template<typename FnType>
+		using FnFunctorType = typename FnFunctorTypeT<FnType>::type;
+	}
+
+	template<typename FnType, typename ... Args>
+	std::result_of_t<FnType> callFunctor(const LemniFunctor &f, Args &&... args){
+		return reinterpret_cast<detail::FnFunctorType<FnType>>(f.fptr)(f.env, std::forward<Args>(args)...);
 	}
 
 	template<typename T>
@@ -265,6 +297,72 @@ namespace lemni::interop{
 	using Real64 = Real<64>;
 
 	using Str = LemniStr;
+
+	template<typename...>
+	class Functor;
+
+	template<typename Ret, typename ... Params>
+	class Functor<Ret(Params...)>{
+		public:
+			explicit Functor(Ret(*fptr)(Params...)) noexcept{
+				functor.dtor = [](auto...){};
+				functor.fptr = fptr;
+				functor.env = nullptr;
+			}
+
+			template<typename Env>
+			Functor(Env env, Ret(*fptr)(const Env*, Params...)){
+				functor.dtor = [](void *ptr){
+					auto envptr = reinterpret_cast<Env*>(ptr);
+					delete envptr;
+				};
+
+				functor.fptr = reinterpret_cast<void(*)()>(fptr);
+
+				functor.env = new Env(std::move(env));
+			}
+
+			Functor(Functor &&other) noexcept{
+				functor.dtor = other.functor.dtor;
+				functor.fptr = other.functor.fptr;
+				functor.env = other.functor.env;
+
+				other.functor.dtor = [](auto...){};
+				other.functor.fptr = [](auto...){};
+				other.functor.env = nullptr;
+			}
+
+			~Functor(){
+				functor.dtor(functor.env);
+			}
+
+			Functor &operator=(Functor &&other) noexcept{
+				functor.dtor(functor.env);
+
+				functor.dtor = other.functor.dtor;
+				functor.fptr = other.functor.fptr;
+				functor.env = other.functor.env;
+
+				other.functor.dtor = [](auto...){};
+				other.functor.fptr = [](auto...){};
+				other.functor.env = nullptr;
+
+				return *this;
+			}
+
+			template<typename ... Args>
+			Ret call(Args &&... args) const{
+				return reinterpret_cast<Ret(*)(const void*, Params...)>(functor.fptr)(functor.env, std::forward<Args>(args)...);
+			}
+
+			template<typename ... Args>
+			Ret operator()(Args &&... args) const{
+				return call(std::forward<Args>(args)...);
+			}
+
+		private:
+			LemniFunctor functor;
+	};
 
 	inline Ratio32 simplifyRatio(const Ratio32 q32) noexcept{ return lemniSimplifyRatio32(q32); }
 	inline Ratio64 simplifyRatio(const Ratio64 q64) noexcept{ return lemniSimplifyRatio64(q64); }

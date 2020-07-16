@@ -15,6 +15,7 @@ For an example of lexing and parsing take a look at `testall/main.cpp`.
 - ICU4C
 - GNU MP
 - GNU MPFR
+- ArbLib
 
 ### Building
 
@@ -26,6 +27,44 @@ mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 cmake --build . -- -j4
 ```
+
+## REPL
+
+A REPL is included to test out the language quickly.
+
+### Building
+
+Follow the instructions under [Library](#Library)
+
+### Usage
+
+Command: `lemni-repl [options]`
+
+Here `options` can be one or more of the following:
+
+| Option | Description |
+|:-------|:------------|
+| `-i filename` | Evaluate a file before prompting for user input |
+| `-e "expr"`   | Evaluate an expression and print the result     |
+
+If run without any options you should get a blank interpreter instance to play around with.
+
+To start the REPL from the build directory, run the following command:
+
+```bash
+./repl/lemni-repl
+```
+
+You should be met with a prompt like so:
+
+```bash
+Infinity lang REPL v4.2 rev 0
+Enter replHelp () for help, or replQuit () to quit
+
+>
+```
+
+To get a feel for the language try calling `replTut ()`.
 
 ## Lemni Example
 
@@ -61,3 +100,17 @@ main() =
 	name = capitalize name
 	IO.outln ("Hello, " ++ name ++ "!")
 ``` 
+
+## Special thanks
+
+Thank you to all the developers behind the following open-source projects that made this possible:
+
+- [ICU4C](http://site.icu-project.org/)
+- [GNU MP](https://gmplib.org/)
+- [GNU MPFR](https://www.mpfr.org/)
+- [ArbLib](http://arblib.org/)
+- [UTF8-CPP](https://github.com/nemtrif/utfcpp)
+- [{fmt}](https://fmt.dev/)
+- [replxx](https://github.com/AmokHuginnsson/replxx)
+- [ImTui](https://github.com/ggerganov/imtui)
+- [Layout](https://github.com/randrew/layout)

@@ -22,12 +22,44 @@
 #include "Interop.h"
 #include "AReal.h"
 #include "Operator.h"
+#include "TypedExpr.h"
+#include "Module.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef const struct LemniValueT *LemniValue;
+typedef const struct LemniValueT *LemniValueConst;
+
+typedef struct LemniValueCallErrorT{
+	LemniStr msg;
+} LemniValueCallError;
+
+typedef struct LemniValueCallResultT{
+	bool hasError;
+	union {
+		LemniValueCallError error;
+		LemniValue value;
+	};
+} LemniValueCallResult;
+
+typedef struct LemniEvalStateT *LemniEvalState;
+typedef struct LemniEvalBindingsT *LemniEvalBindings;
+
+typedef struct LemniValueBindingsT *LemniValueBindings;
+typedef const struct LemniValueBindingsT *LemniValueBindingsConst;
+
+LemniValueBindings lemniCreateValueBindings();
+
+void lemniDestroyValueBindings(LemniValueBindings bindings);
+
+void lemniSetValueBinding(LemniValueBindings bindings, const LemniStr name, LemniValue value);
+
+LemniValue lemniGetValueBinding(LemniValueBindings bindings, const LemniStr name);
+
+typedef LemniType(*LemniTypeFn)(void *const ptr, LemniTypeSet types);
+typedef LemniValueCallResult(*LemniEvalFn)(void *const ptr, LemniEvalState state, LemniEvalBindings bindings, LemniValue *const args, const LemniNat64 numArgs);
 
 void lemniDestroyValue(LemniValue value);
 
@@ -35,9 +67,15 @@ LemniValue lemniCreateValueCopy(LemniValue value);
 
 LemniValue lemniCreateValueRef(LemniValue value);
 
+LemniValue lemniCreateValueModule(LemniModule handle);
+
 LemniValue lemniCreateValueUnit(void);
 
 LemniValue lemniCreateValueBool(const LemniBool b);
+
+LemniValue lemniCreateValueFn(LemniTypeFn typeFn, LemniEvalFn fn, void *const ptr, LemniEvalState state, LemniEvalBindings bindings);
+
+LemniValue lemniCreateValueProduct(const LemniValueConst *const vals, const LemniNat64 numVals);
 
 LemniValue lemniCreateValueNat16(const LemniNat16 n16);
 LemniValue lemniCreateValueNat32(const LemniNat32 n32);
@@ -58,11 +96,24 @@ LemniValue lemniCreateValueReal32(const LemniReal32 r32);
 LemniValue lemniCreateValueReal64(const LemniReal64 r64);
 LemniValue lemniCreateValueAReal(LemniARealConst areal);
 
+LemniValue lemniCreateValueStrUTF8(const LemniStr str);
+LemniValue lemniCreateValueStrASCII(const LemniStr str);
+
+LemniValue lemniCreateValueType(LemniType type);
+
 typedef void(*LemniValueStrCB)(void *user, LemniStr str);
 
 void lemniValueStr(LemniValue value, void *user, LemniValueStrCB cb);
 
-LemniValue lemniValueBinaryOp(LemniBinaryOp op, LemniValue lhs, LemniValue rhs);
+LemniValueCallResult lemniValueCall(LemniValue fn, LemniValue *const args, const LemniNat32 numArgs);
+
+LemniValue lemniValueAccess(LemniValue val, LemniStr member);
+
+LemniInt16 lemniValueIsTrue(LemniValueConst val);
+LemniInt16 lemniValueIsFalse(LemniValueConst val);
+
+LemniValue lemniValueUnaryOp(const LemniUnaryOp op, LemniValue value);
+LemniValue lemniValueBinaryOp(const LemniBinaryOp op, LemniValue lhs, LemniValue rhs);
 
 LemniValue lemniValueAdd(LemniValue lhs, LemniValue rhs);
 LemniValue lemniValueSub(LemniValue lhs, LemniValue rhs);
@@ -84,6 +135,7 @@ LemniValue lemniValueNotEqual(LemniValue lhs, LemniValue rhs);
 
 #ifndef LEMNI_NO_CPP
 #include <stdexcept>
+#include <vector>
 #include <utility>
 
 namespace lemni{
@@ -113,12 +165,16 @@ namespace lemni{
 		template<> struct ValueCreator<LemniReal64>{ static LemniValue create(LemniReal64 v){ return lemniCreateValueReal64(v); } };
 		template<> struct ValueCreator<lemni::AReal>{ static LemniValue create(const lemni::AReal &v){ return lemniCreateValueAReal(v.handle()); } };
 
+		template<> struct ValueCreator<LemniStr>{ static LemniValue create(const LemniStr v){ return lemniCreateValueStrUTF8(v); } };
+
 		template<typename T>
 		LemniValue createLemniValue(T v){ return ValueCreator<T>::create(v); }
 	}
 
 	class Value{
 		public:
+			Value() noexcept: m_value(nullptr){}
+
 			template<typename T>
 			explicit Value(T value) noexcept
 				: m_value(detail::ValueCreator<T>::create(value)){}
@@ -156,6 +212,12 @@ namespace lemni{
 
 			LemniValue handle() const noexcept{ return m_value; }
 
+			LemniValue release() noexcept{
+				auto ret = m_value;
+				m_value = nullptr;
+				return ret;
+			}
+
 			std::string toString() const noexcept{
 				std::string res;
 				lemniValueStr(m_value, &res, [](void *p, const LemniStr str){
@@ -163,6 +225,31 @@ namespace lemni{
 					*strp = std::string(str.ptr, str.len);
 				});
 				return res;
+			}
+
+			Value doCall(LemniValue *const args, const LemniNat32 numArgs){
+				auto callRes = lemniValueCall(m_value, args, numArgs);
+				if(callRes.hasError){
+					throw std::runtime_error(lemni::toStdStr(callRes.error.msg));
+				}
+				else{
+					return Value::from(callRes.value);
+				}
+			}
+
+			template<typename Arg, typename ... Args>
+			Value call(Arg &&arg, Args &&... args){
+				LemniValue argVals[] = {
+					detail::createLemniValue(std::forward<Arg>(arg)),
+					detail::createLemniValue(std::forward<Args>(args))...
+				};
+
+				return doCall(argVals, sizeof...(Args) + 1);
+			}
+
+			template<typename Arg, typename ... Args>
+			Value operator()(Arg &&arg, Args &&... args){
+				return call(std::forward<Arg>(arg), std::forward<Args>(args)...);
 			}
 
 			Value &operator+=(LemniValue rhs) noexcept{
@@ -217,6 +304,48 @@ namespace lemni{
 			}
 
 			LemniValue m_value;
+	};
+
+	class ValueBindings{
+		public:
+			ValueBindings() noexcept
+				: m_bindings(lemniCreateValueBindings()){}
+
+			ValueBindings(ValueBindings &&other) noexcept
+				: m_bindings(other.m_bindings)
+			{
+				other.m_bindings = nullptr;
+			}
+
+			~ValueBindings(){ if(m_bindings) lemniDestroyValueBindings(m_bindings); }
+
+			ValueBindings &operator =(ValueBindings &&other) noexcept{
+				m_bindings = other.m_bindings;
+				other.m_bindings = nullptr;
+				return *this;
+			}
+
+			LemniValueBindings handle() noexcept{ return m_bindings; }
+
+			void set(LemniStr name, LemniValue val){
+				lemniSetValueBinding(m_bindings, name, val);
+			}
+
+			void set(std::string_view name, Value val){
+				set(lemni::fromStdStrView(name), val.release());
+			}
+
+			LemniValue get(LemniStr name) const{
+				return lemniGetValueBinding(m_bindings, name);
+			}
+
+			Value get(std::string_view name) const{
+				auto res = get(lemni::fromStdStrView(name));
+				return Value::from(res);
+			}
+
+		private:
+			LemniValueBindings m_bindings;
 	};
 }
 #endif // !LEMNI_NO_CPP

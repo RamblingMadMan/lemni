@@ -22,6 +22,11 @@
 #include "TypedExpr.h"
 #include "Value.h"
 
+/**
+ * @defgroup Eval Types and functions related to expression evaluation.
+ * @{
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,30 +36,23 @@ extern "C" {
  */
 typedef struct LemniEvalStateT *LemniEvalState;
 
-/**
- * @brief Type representing an evaluation error.
- */
-typedef struct {
-	LemniStr msg;
-} LemniEvalError;
+LEMNI_OPAQUE_T(LemniEvalBindings);
+
+typedef LemniValueCallError LemniEvalError;
 
 /**
  * @brief Type representing the result of an evaluation.
  */
-typedef struct {
-	bool hasError;
-	union {
-		LemniEvalError error;
-		LemniValue value;
-	};
-} LemniEvalResult;
+typedef LemniValueCallResult LemniEvalResult;
+
 
 /**
  * @brief Create state for evaluating typed expressions.
  * @note the returned state must be destroyed with \ref lemniDestroyEvalState .
+ * @param types type set to retrieve any types from
  * @return The newly created state
  */
-LemniEvalState lemniCreateEvalState(void);
+LemniEvalState lemniCreateEvalState(LemniTypeSet types);
 
 /**
  * @brief Destroy state previously created with \ref lemniCreateEvalState .
@@ -62,6 +60,14 @@ LemniEvalState lemniCreateEvalState(void);
  * @param state state to destroy
  */
 void lemniDestroyEvalState(LemniEvalState state);
+
+/**
+ * @brief Get all globally bound identifiers that have been evaluated.
+ * @warning \p state must be a valid pointer.
+ * @param state state to query
+ * @returns handle to bindings
+ */
+LemniEvalBindings lemniEvalGlobalBindings(LemniEvalState state);
 
 /**
  * @brief Evaluate a typed expression.
@@ -81,7 +87,7 @@ LemniEvalResult lemniEval(LemniEvalState state, LemniTypedExpr expr);
 namespace lemni{
 	class EvalState{
 		public:
-			EvalState(): m_state(lemniCreateEvalState()){}
+			explicit EvalState(LemniTypeSet types): m_state(lemniCreateEvalState(types)){}
 
 			EvalState(EvalState &&other) noexcept: m_state(other.m_state){ other.m_state = nullptr; }
 
@@ -96,6 +102,8 @@ namespace lemni{
 			}
 
 			EvalState &operator=(const EvalState&) = delete;
+
+			operator LemniEvalState() noexcept{ return m_state; }
 
 			LemniEvalState handle() noexcept{ return m_state; }
 
@@ -115,5 +123,9 @@ namespace lemni{
 }
 #endif // !LEMNI_NO_CPP
 #endif // __cplusplus
+
+/**
+ * @}
+ */
 
 #endif // !LEMNI_EVAL_H

@@ -23,116 +23,939 @@
 #include <string>
 #include <memory>
 #include <new>
+#include <map>
+#include <span>
+#include <unordered_map>
 
+#include <dlfcn.h>
+
+#include "fmt/printf.h"
+
+#include "lemni/Value.h"
 #include "lemni/eval.h"
+#include "lemni/Scope.h"
 
+#include "TypeList.hpp"
 #include "TypedExpr.hpp"
+#include "Value.hpp"
+
+using namespace lemni::typelist;
 
 struct LemniEvalStateT{
 	std::vector<std::string> errMsgs;
+	std::map<LemniTypedExpr, lemni::Value> stored;
+	lemni::Scope globalScope;
+	LemniEvalBindingsT globalBindings;
+	LemniTypeSet types;
+	void *dlHandle;
 };
 
-LemniEvalState lemniCreateEvalState(void){
+LemniEvalState lemniCreateEvalState(LemniTypeSet types){
 	auto mem = std::malloc(sizeof(LemniEvalStateT));
 	auto p = new(mem) LemniEvalStateT;
+
+	p->types = types;
+
+	p->dlHandle = dlopen(nullptr, RTLD_GLOBAL | RTLD_LAZY);
+	if(!p->dlHandle){
+		fmt::print(stderr, "Error in dlopen: {}\n", dlerror());
+		std::destroy_at(p);
+		std::free(mem);
+		return nullptr;
+	}
+
 	return p;
 }
 
 void lemniDestroyEvalState(LemniEvalState state){
+	dlclose(state->dlHandle);
 	std::destroy_at(state);
 	std::free(state);
 }
 
-LemniEvalResult lemniEval(LemniEvalState state, LemniTypedExpr expr){
-	LemniEvalResult res;
-
-	if(auto constExpr = dynamic_cast<LemniTypedConstantExpr>(expr)){
-		if(auto natExpr = dynamic_cast<LemniTypedNatExpr>(constExpr)){
-			res.hasError = false;
-
-			auto n = natExpr->value.numBitsUnsigned();
-
-			if(n > 64){
-				res.value = lemniCreateValueANat(natExpr->value.handle());
-			}
-			else{
-				auto val = lemniAIntToULong(natExpr->value.handle());
-
-				if(n <= 16){
-					res.value = lemniCreateValueNat16(static_cast<LemniNat16>(val));
-				}
-				else if(n <= 32){
-					res.value = lemniCreateValueNat32(static_cast<LemniNat32>(val));
-				}
-				else{
-					res.value = lemniCreateValueNat64(static_cast<LemniNat64>(val));
-				}
-			}
-		}
-		else if(auto intExpr = dynamic_cast<LemniTypedIntExpr>(constExpr)){
-			res.hasError = false;
-
-			auto n = intExpr->value.numBits();
-
-			if(n > 64){
-				res.value = lemniCreateValueAInt(intExpr->value.handle());
-			}
-			else{
-				auto val = lemniAIntToLong(natExpr->value.handle());
-
-				if(n <= 16){
-					res.value = lemniCreateValueInt16(static_cast<LemniInt16>(val));
-				}
-				else if(n <= 32){
-					res.value = lemniCreateValueInt32(static_cast<LemniInt32>(val));
-				}
-				else{
-					res.value = lemniCreateValueInt64(static_cast<LemniInt64>(val));
-				}
-			}
-		}
-		else if(auto ratioExpr = dynamic_cast<LemniTypedRatioExpr>(constExpr)){
-			res.hasError = false;
-
-			auto bitPair = ratioExpr->value.numBits();
-			auto n = std::max(bitPair.num, bitPair.den);
-
-			if(n > 64){
-				res.value = lemniCreateValueARatio(ratioExpr->value.handle());
-			}
-			else{
-				auto num = ratioExpr->value.num().toLong();
-				auto den = ratioExpr->value.den().toULong();
-
-				if(n <= 16){
-					res.value = lemniCreateValueRatio32({static_cast<LemniInt16>(num), static_cast<LemniNat16>(den)});
-				}
-				else if(n <= 32){
-					res.value = lemniCreateValueRatio64({static_cast<LemniInt32>(num), static_cast<LemniNat32>(den)});
-				}
-				else{
-					res.value = lemniCreateValueRatio128({static_cast<LemniInt64>(num), static_cast<LemniNat64>(den)});
-				}
-			}
-		}
-		else if(auto realExpr = dynamic_cast<LemniTypedRealExpr>(constExpr)){
-			res.hasError = false;
-			res.value = lemniCreateValueAReal(realExpr->value.handle());
-		}
-		else{
-			auto &&msg = state->errMsgs.emplace_back("unrecognized constant expression");
-			res.hasError = true;
-			res.error = {msg.c_str(), msg.size()};
-		}
+namespace {
+	LemniEvalResult makeError(LemniEvalState state, std::string msg){
+		auto &&errMsg = state->errMsgs.emplace_back(std::move(msg));
+		LemniEvalResult res;
+		res.hasError = true;
+		res.error.msg = lemni::fromStdStrView(errMsg);
+		return res;
 	}
-	else if(auto binopExpr = dynamic_cast<LemniTypedBinaryOpExpr>(expr)){
 
+	LemniEvalResult makeResult(LemniValue val){
+		LemniEvalResult res;
+		res.hasError = false;
+		res.value = val;
+		return res;
+	}
+}
+
+LemniEvalResult LemniTypedUnaryOpExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	auto res = value->eval(state, bindings);
+	if(res.hasError) return res;
+
+	auto retVal = lemniValueUnaryOp(this->op, res.value);
+
+	lemniDestroyValue(res.value);
+
+	return makeResult(retVal);
+}
+
+LemniEvalResult LemniTypedBinaryOpExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	auto res = lhs->eval(state, bindings);
+	if(res.hasError) return res;
+
+	auto lhsVal = res.value;
+
+	res = rhs->eval(state, bindings);
+	if(res.hasError){
+		lemniDestroyValue(lhsVal);
+		return res;
+	}
+
+	auto rhsVal = res.value;
+
+	auto retVal = lemniValueBinaryOp(this->op, lhsVal, rhsVal);
+
+	lemniDestroyValue(lhsVal);
+	lemniDestroyValue(rhsVal);
+
+	return makeResult(retVal);
+}
+
+LemniEvalResult LemniTypedBindingExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	auto res = bindings->find(this);
+	if(res){
+		return makeResult(lemniCreateValueRef(res));
+	}
+
+	lemni::Value val;
+	{
+		auto res = value->eval(state, bindings);
+		if(res.hasError) return res;
+
+		val = lemni::Value::from(res.value);
+	}
+
+	auto valRef = lemniCreateValueRef(val.handle());
+
+	state->stored[this] = std::move(val);
+
+	return makeResult(valRef);
+}
+
+LemniEvalResult LemniTypedApplicationExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	lemni::Value fnVal;
+	{
+		auto res = fn->eval(state, bindings);
+		if(res.hasError) return res;
+		fnVal = lemni::Value::from(res.value);
+	}
+
+	std::vector<lemni::Value> argVals;
+	std::vector<LemniValue> argHandles;
+	argVals.reserve(args.size());
+	argHandles.reserve(args.size());
+
+	for(auto arg : args){
+		auto argRes = arg->eval(state, bindings);
+		if(argRes.hasError) return argRes;
+
+		auto handle = argHandles.emplace_back(argRes.value);
+		argVals.emplace_back(lemni::Value::from(handle));
+	}
+
+	auto callRes = lemniValueCall(fnVal.handle(), argHandles.data(), argHandles.size());
+	if(callRes.hasError){
+		LemniEvalResult res;
+		res.hasError = true;
+		res.error.msg = callRes.error.msg;
+		return res;
+	}
+
+	return makeResult(callRes.value);
+}
+
+LemniEvalResult LemniTypedProductExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	std::vector<lemni::Value> elemVals;
+	std::vector<LemniValue> elemHandles;
+	elemVals.reserve(elems.size());
+	elemHandles.reserve(elems.size());
+
+	for(auto elem : this->elems){
+		auto elemRes = elem->eval(state, bindings);
+		if(elemRes.hasError) return elemRes;
+
+		auto handle = elemHandles.emplace_back(elemRes.value);
+		elemVals.emplace_back(lemni::Value::from(handle));
+	}
+
+	return makeResult(lemniCreateValueProduct(elemHandles.data(), elemHandles.size()));
+}
+
+LemniEvalResult LemniTypedBranchExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	auto condRes = cond->eval(state, bindings);
+	if(condRes.hasError) return condRes;
+
+	auto condVal = lemniValueIsTrue(condRes.value);
+
+	lemniDestroyValue(condRes.value);
+
+	if(condVal == 0){
+		// not true
+		return this->false_->eval(state, bindings);
+	}
+	else if(condVal == 1){
+		// true
+		return this->true_->eval(state, bindings);
 	}
 	else{
-		auto &&msg = state->errMsgs.emplace_back("unrecognized expression");
+		// not a boolean condition
+		LemniEvalResult res;
 		res.hasError = true;
-		res.error = {msg.c_str(), msg.size()};
+		res.error.msg = LEMNICSTR("branch has non-boolean condition");
+		return res;
+	}
+}
+
+LemniEvalResult LemniTypedReturnExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	LemniEvalResult res;
+	res.hasError = true;
+	res.error.msg = LEMNICSTR("return expressions can not be evaluated directly");
+	return res;
+}
+
+LemniEvalResult LemniTypedBlockExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	LemniValue val = nullptr;
+
+	for(auto expr : exprs){
+		if(val) lemniDestroyValue(val);
+
+		if(auto retExpr = dynamic_cast<LemniTypedReturnExpr>(expr)){
+			auto exprRes = retExpr->value->eval(state, bindings);
+			if(exprRes.hasError) return exprRes;
+
+			return makeResult(exprRes.value);
+		}
+		else{
+			auto exprRes = expr->eval(state, bindings);
+			if(exprRes.hasError) return exprRes;
+
+			val = exprRes.value;
+		}
 	}
 
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedLambdaExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	LemniEvalResult res;
+	res.hasError = true;
+	res.error.msg = LEMNICSTR("lambda expression evaluation unimplemented");
 	return res;
+}
+
+LemniEvalResult LemniTypedImportExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	return makeResult(lemniCreateValueModule(module));
+}
+
+LemniEvalResult LemniTypedExportExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	LemniEvalResult res;
+	res.hasError = true;
+	res.error.msg = LEMNICSTR("export expression evaluation unimplemented");
+	return res;
+}
+
+LemniEvalResult LemniTypedUnitExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto unitVal = lemniCreateValueUnit();
+	return makeResult(unitVal);
+}
+
+LemniEvalResult LemniTypedBoolExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto boolVal = lemniCreateValueBool(value);
+	return makeResult(boolVal);
+}
+
+LemniEvalResult LemniTypedANatExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueANat(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedNat16ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueNat16(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedNat32ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueNat32(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedNat64ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueNat64(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedAIntExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueAInt(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedInt16ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueInt16(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedInt32ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueInt32(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedInt64ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueInt64(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedARatioExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueARatio(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedRatio32ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueRatio32(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedRatio64ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueRatio64(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedRatio128ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueRatio128(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedARealExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueAReal(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedReal32ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueReal32(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedReal64ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueReal64(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedStringASCIIExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueStrASCII(lemni::fromStdStrView(this->value));
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedStringUTF8ExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueStrUTF8(lemni::fromStdStrView(this->value));
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedTypeExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueType(this->value);
+	return makeResult(val);
+}
+
+LemniEvalResult LemniTypedParamBindingExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	LemniEvalResult ret;
+
+	auto res = bindings->find(this);
+	if(!res){
+		ret.hasError = true;
+		ret.error.msg = LEMNICSTR("no value is bound to parameter");
+	}
+	else{
+		ret.hasError = false;
+		ret.value = lemniCreateValueRef(res);
+	}
+
+	return ret;
+}
+
+LemniEvalResult LemniTypedFnDefExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+
+	auto doType = [](void *const self_, LemniTypeSet types) -> LemniType{
+		auto self = reinterpret_cast<LemniTypedFnDefExpr>(self_);
+		auto fnType = self->fnType;
+		// TODO: ensure 'fnType' exists in 'types'
+		(void)types;
+		return fnType;
+	};
+
+	auto doEval = [](void *const self_, LemniEvalState state, LemniEvalBindings bindings, LemniValue *const args, const LemniNat64 numArgs){
+		auto self = reinterpret_cast<LemniTypedFnDefExpr>(self_);
+
+		auto fnType = self->fnType;
+
+		if(numArgs != self->params.size()){
+			LemniValueCallResult res;
+			res.hasError = true;
+			res.error.msg = LEMNICSTR("wrong number of args passeds");
+			return res;
+		}
+
+		auto fnBindings = LemniEvalBindingsT(bindings);
+
+		for(std::size_t i = 0; i < self->params.size(); i++){
+			fnBindings.bound[self->params[i]] = lemni::Value::from(lemniCreateValueRef(args[i]));
+		}
+
+		auto retRes = self->body->eval(state, &fnBindings);
+		return retRes;
+	};
+
+	auto val = lemniCreateValueFn(doType, doEval, const_cast<LemniTypedFnDefExprT*>(this), state, bindings);
+	return makeResult(val);
+}
+
+template<typename...>
+struct LemniTypeApp;
+
+template<bool ConvertC, template<typename...> typename F, typename ... Ts>
+struct LemniTypeApp<std::integral_constant<bool, ConvertC>, Partial<F, Ts...>>{
+	template<typename ... Us>
+	using Call = F<Ts..., Us...>;
+
+	template<typename ... Args>
+	static decltype(auto) apply(LemniType type, Args &&... args){
+		if(lemniTypeAsUnit(type)){
+			return Call<std::conditional_t<ConvertC, LemniUnit, void>>::apply(std::forward<Args>(args)...);
+		}
+		else if(auto boolTy = lemniTypeAsBool(type)){
+			return Call<bool>::apply(std::forward<Args>(args)...);
+		}
+		else if(auto natTy = lemniTypeAsNat(type)){
+			switch(lemniTypeNumBits(type)){
+				case 16: return Call<std::uint16_t>::apply(std::forward<Args>(args)...);
+				case 32: return Call<std::uint32_t>::apply(std::forward<Args>(args)...);
+				case 64: return Call<std::uint64_t>::apply(std::forward<Args>(args)...);
+				default:{
+					assert(!"natural type of non-system bits");
+					break;
+				}
+			}
+		}
+		else if(auto intTy = lemniTypeAsInt(type)){
+			switch(lemniTypeNumBits(type)){
+				case 16: return Call<std::int16_t>::apply(std::forward<Args>(args)...);
+				case 32: return Call<std::int32_t>::apply(std::forward<Args>(args)...);
+				case 64: return Call<std::int64_t>::apply(std::forward<Args>(args)...);
+				default:{
+					assert(!"integer type of non-system bits");
+					break;
+				}
+			}
+		}
+		else if(auto ratioTy = lemniTypeAsRatio(type)){
+			switch(lemniTypeNumBits(type)){
+				case 32: return Call<LemniRatio32>::apply(std::forward<Args>(args)...);
+				case 64: return Call<LemniRatio64>::apply(std::forward<Args>(args)...);
+				case 128: return Call<LemniRatio128>::apply(std::forward<Args>(args)...);
+				default:{
+					assert(!"ratio type of non-system bits");
+					break;
+				}
+			}
+		}
+		else if(auto realTy = lemniTypeAsReal(type)){
+			switch(lemniTypeNumBits(type)){
+				case 32: return Call<float>::apply(std::forward<Args>(args)...);
+				case 64: return Call<double>::apply(std::forward<Args>(args)...);
+				default:{
+					assert(!"real type of non-system bits");
+					break;
+				}
+			}
+		}
+		else if(auto strTy = lemniTypeAsString(type)){
+			return Call<LemniStr>::apply(std::forward<Args>(args)...);
+		}
+		else{
+			assert(!"un-representable type");
+		}
+	}
+};
+
+template<typename...>
+struct TypedFnCaller;
+
+template<typename Result>
+struct TypedFnCaller<Result()>{
+	static LemniEvalFn apply() noexcept{
+		return [](void *const ptr, LemniEvalState state, LemniEvalBindings bindings, LemniValue *const args, const LemniNat64 numArgs){
+			(void)bindings;
+
+			auto fptr = reinterpret_cast<Result(*)()>(ptr);
+
+			if(numArgs != 0){
+				if(numArgs == 1){
+					auto argType = args[0]->getType(state->types);
+					if(!lemniTypeAsUnit(argType)){
+						LemniValueCallResult res;
+						res.hasError = true;
+						res.error.msg = LEMNICSTR("wrong number of args passed");
+						return res;
+					}
+				}
+				else{
+					LemniValueCallResult res;
+					res.hasError = true;
+					res.error.msg = LEMNICSTR("wrong number of args passed");
+					return res;
+				}
+			}
+
+			LemniValueCallResult res;
+			res.hasError = false;
+
+			if constexpr(std::is_same_v<void, Result>){
+				fptr();
+				res.value = lemniCreateValueUnit();
+			}
+			else{
+				res.value = lemni::detail::createLemniValue(fptr());
+			}
+
+			return res;
+		};
+	}
+};
+
+template<typename Result, typename ... Params>
+struct TypedFnCaller<Result(Params...)>{
+	template<std::size_t ... ParamsIndices>
+	static LemniEvalFn applyImpl(std::index_sequence<ParamsIndices...>){
+		return [](void *const ptr, LemniEvalState state, LemniEvalBindings bindings, LemniValue *const args, const LemniNat64 numArgs){
+			(void)bindings;
+
+			auto fptr = reinterpret_cast<Result(*)(Params...)>(ptr);
+
+			if(numArgs != sizeof...(Params)){
+				LemniValueCallResult res;
+				res.hasError = true;
+				res.error.msg = LEMNICSTR("wrong number of args passed");
+				return res;
+			}
+
+			std::unique_ptr<std::byte[]> argDatas[] = { argData<ParamsIndices>(state->types, args)... };
+
+			auto argPtrs = std::make_tuple(argPtr<ParamsIndices>(argDatas)...);
+
+			LemniValueCallResult res;
+			res.hasError = false;
+
+			if constexpr(std::is_same_v<void, Result>){
+				fptr(*std::get<ParamsIndices>(argPtrs)...);
+				res.value = lemniCreateValueUnit();
+			}
+			else{
+				res.value = lemni::detail::createLemniValue(fptr(*std::get<ParamsIndices>(argPtrs)...));
+			}
+
+			return res;
+		};
+	}
+
+	static LemniEvalFn apply() noexcept{
+		return applyImpl(std::make_index_sequence<sizeof...(Params)>{});
+	}
+
+	template<std::size_t Idx>
+	static auto argPtr(std::unique_ptr<std::byte[]> (&argDatas)[sizeof...(Params)]) noexcept{
+		using ParamType = std::tuple_element_t<Idx, std::tuple<Params...>>;
+		return reinterpret_cast<ParamType*>(argDatas[Idx].get());
+	}
+
+	template<std::size_t Idx>
+	static auto argData(LemniTypeSet types, LemniValue *const args) noexcept{
+		using ParamType = std::tuple_element_t<Idx, std::tuple<Params...>>;
+		auto paramTy = lemni::getCType<ParamType>(types);
+		return args[Idx]->toBytes(paramTy);
+	}
+};
+
+template<typename...>
+struct TypedFFICallerRetPartial;
+
+template<std::size_t ParamsRem, typename Ret, typename ... Params>
+struct TypedFFICallerRetPartial<std::integral_constant<std::size_t, ParamsRem>, Ret, Params...>{
+	static auto apply(std::span<LemniType> params){
+		return LemniTypeApp<std::true_type, TypedFFICallerRetPartial, std::integral_constant<std::size_t, ParamsRem-1>, Ret, Params...>::apply(params[0], params.subspan(1));
+	}
+};
+
+template<typename Ret, typename ... Params>
+struct TypedFFICallerRetPartial<std::integral_constant<std::size_t, 0>, Ret, Params...>{
+	static auto apply(std::span<LemniType> params){
+		(void)params;
+		return TypedFnCaller<Ret(Params...)>::apply();
+	}
+};
+
+template<typename...>
+struct TypedFFICallerRet;
+
+template<std::size_t NumParams, typename Ret>
+struct TypedFFICallerRet<std::integral_constant<std::size_t, NumParams>, Ret>{
+	static auto apply(std::span<LemniType> params){
+		return TypedFFICallerRetPartial<std::integral_constant<std::size_t, NumParams>, Ret>::apply(params);
+	}
+};
+
+template<std::size_t NumParams>
+struct TypedFFICaller{
+	static_assert(!(NumParams >= 0) || !(NumParams <= 0));
+	static auto apply(LemniType result, std::span<LemniType> params){
+		return LemniTypeApp<std::false_type, Partial<TypedFFICallerRet, std::integral_constant<std::size_t, NumParams>>>::apply(result, params);
+	}
+};
+
+template<typename...>
+struct FFICallerGet;
+
+template<std::size_t NumParams, typename Ret>
+struct FFICallerGet<std::integral_constant<std::size_t, NumParams>, Ret>{
+	template<typename T, std::size_t I, std::size_t ... Is, typename ... Ts>
+	static auto appendTypesImpl(std::span<LemniType> params, TypeList<Ts...>){
+		if constexpr(sizeof...(Is) == 0){
+			return TypedFnCaller<Ret(Ts..., T)>::apply();
+		}
+		else{
+			return appendTypes<Is...>(params, TypeList<Ts..., T>{});
+		}
+	}
+
+	template<std::size_t I, std::size_t ... Is, typename ... Ts>
+	static auto appendTypes(std::span<LemniType> params, TypeList<Ts...> tl){
+		auto param = params[I];
+
+		//auto paramTypes = std::make_tuple(paramTypeList<I>(params), paramTypeList<Is>(params)...);
+		if(lemniTypeAsUnit(param)) return appendTypesImpl<LemniUnit, I, Is...>(params, tl);
+		else if(lemniTypeAsBool(param)) return appendTypesImpl<LemniBool, I, Is...>(params, tl);
+		else if(lemniTypeAsNat(param)){
+			switch(lemniTypeNumBits(param)){
+				case 16: return appendTypesImpl<LemniNat16, I, Is...>(params, tl);
+				case 32: return appendTypesImpl<LemniNat32, I, Is...>(params, tl);
+				case 64: return appendTypesImpl<LemniNat64, I, Is...>(params, tl);
+				default: assert(!"unsupported natural bit width");
+			}
+		}
+		else if(lemniTypeAsInt(param)){
+			switch(lemniTypeNumBits(param)){
+				case 16: return appendTypesImpl<LemniInt16, I, Is...>(params, tl);
+				case 32: return appendTypesImpl<LemniInt32, I, Is...>(params, tl);
+				case 64: return appendTypesImpl<LemniInt64, I, Is...>(params, tl);
+				default: assert(!"unsupported integer bit width");
+			}
+		}
+		else if(lemniTypeAsRatio(param)){
+			switch(lemniTypeNumBits(param)){
+				case 32: return appendTypesImpl<LemniRatio32, I, Is...>(params, tl);
+				case 64: return appendTypesImpl<LemniRatio64, I, Is...>(params, tl);
+				case 128: return appendTypesImpl<LemniRatio128, I, Is...>(params, tl);
+				default: assert(!"unsupported rational bit width");
+			}
+		}
+		else if(lemniTypeAsReal(param)){
+			switch(lemniTypeNumBits(param)){
+				case 32: return appendTypesImpl<LemniReal32, I, Is...>(params, tl);
+				case 64: return appendTypesImpl<LemniReal64, I, Is...>(params, tl);
+				default: assert(!"unsupported real bit width");
+			}
+		}
+		else{
+			assert(!"un-representable type");
+		}
+	}
+
+	template<std::size_t ... Is>
+	static auto applyImpl(std::span<LemniType> params, std::index_sequence<Is...>){
+		return appendTypes<Is...>(params, TypeList<>{});
+	}
+
+	static auto apply(std::span<LemniType> params){
+		return applyImpl(params, std::make_index_sequence<NumParams>{});
+	}
+};
+
+template<typename Ret>
+struct FFICallerGet<std::integral_constant<std::size_t, 0>, Ret>{
+	static auto apply(){
+		return TypedFnCaller<Ret()>::apply();
+	}
+};
+
+namespace detail{
+	template<auto...>
+	struct MinT;
+
+	template<auto...>
+	struct MaxT;
+
+	template<typename T, T lhs, T rhs>
+	struct MinT<lhs, rhs>{
+		static constexpr T value = lhs < rhs ? lhs : rhs;
+	};
+
+	template<typename T, T lhs, T rhs>
+	struct MaxT<lhs, rhs>{
+		static constexpr T value = lhs > rhs ? lhs : rhs;
+	};
+
+	template<auto ... Args>
+	inline constexpr auto Min = MinT<Args...>::value;
+
+	template<auto ... Args>
+	inline constexpr auto Max = MaxT<Args...>::value;
+}
+
+template<typename Ret>
+struct FFICallerRet{
+	static LemniEvalFn apply(LemniTypedExtFnDeclExpr fn){
+		static auto callFn = +[](LemniTypedExtFnDeclExpr self, LemniEvalState state, const char *name, void *argPtrs[]){
+			auto fnptr = dlsym(state->dlHandle, name);
+			if(!fnptr){
+				return makeError(state, fmt::format("Error in dlsym: {}", dlerror()));
+			}
+
+			if constexpr(std::is_same_v<void, Ret>){
+				//ffi_arg result;
+				ffi_call(&self->cif, FFI_FN(fnptr), nullptr, argPtrs);
+
+				LemniValueCallResult res;
+				res.hasError = false;
+				res.value = lemniCreateValueUnit();
+				return res;
+			}
+			else{
+				thread_local std::aligned_storage_t<
+					detail::Max<sizeof(Ret), sizeof(ffi_arg)>,
+					detail::Max<alignof(Ret), alignof(ffi_arg)>> retStorage;
+
+				ffi_call(&self->cif, FFI_FN(fnptr), &retStorage, argPtrs);
+
+				LemniValueCallResult res;
+				res.hasError = false;
+				res.value = lemni::detail::createLemniValue(*reinterpret_cast<Ret*>(&retStorage));
+				return res;
+			}
+		};
+
+		if(fn->paramNames.empty()){
+			return +[](void *const ptr, LemniEvalState state, LemniEvalBindings bindings, LemniValue *const args, const LemniNat64 numArgs)
+					-> LemniValueCallResult
+			{
+				(void)bindings;
+				auto self = reinterpret_cast<LemniTypedExtFnDeclExpr>(ptr);
+				auto name = std::string(self->id());
+
+				if(numArgs != 0){
+					if(numArgs == 1){
+						auto argType = args[0]->getType(state->types);
+						if(!lemniTypeAsUnit(argType)){
+							LemniValueCallResult res;
+							res.hasError = true;
+							res.error.msg = LEMNICSTR("wrong number of args passed");
+							return res;
+						}
+					}
+					else{
+						LemniValueCallResult res;
+						res.hasError = true;
+						res.error.msg = LEMNICSTR("wrong number of args passed");
+						return res;
+					}
+				}
+
+				return callFn(self, state, name.c_str(), nullptr);
+			};
+		}
+		else{
+			return +[](void *const ptr, LemniEvalState state, LemniEvalBindings bindings, LemniValue *const args, const LemniNat64 numArgs)
+					-> LemniValueCallResult
+			{
+				(void)bindings;
+				auto self = reinterpret_cast<LemniTypedExtFnDeclExpr>(ptr);
+				auto fnType = self->fnType;
+				auto name = std::string(self->id());
+
+				if(numArgs != self->paramNames.size()){
+					LemniValueCallResult res;
+					res.hasError = true;
+					res.error.msg = LEMNICSTR("wrong number of args passed");
+					return res;
+				}
+
+				std::vector<std::unique_ptr<std::byte[]>> argBytes;
+				std::vector<void*> argPtrs;
+
+				argBytes.reserve(numArgs);
+				argPtrs.reserve(numArgs);
+
+				for(LemniNat64 i = 0; i < numArgs; i++){
+					auto arg = args[i];
+					auto argType = arg->getType(state->types);
+					auto paramType = lemniFunctionTypeParam(fnType, i);
+
+					auto bytes = arg->toBytes(paramType);
+					if(!bytes){
+						return makeError(state, fmt::format(
+							"argument {} is not castable from '{}' to '{}'",
+							i+1,
+							lemni::toStdStrView(lemniTypeStr(argType)),
+							lemni::toStdStrView(lemniTypeStr(paramType))
+						));
+					}
+
+					argPtrs.emplace_back(bytes.get());
+					argBytes.emplace_back(std::move(bytes));
+				}
+
+				return callFn(self, state, name.c_str(), argPtrs.data());
+			};
+		}
+	}
+};
+
+struct FFICaller{
+	static auto get(LemniType result, LemniTypedExtFnDeclExpr fn){
+		return LemniTypeApp<std::false_type, Partial<FFICallerRet>>::apply(result, fn);
+	}
+};
+
+LemniEvalResult LemniTypedExtFnDeclExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+
+	LemniTypeFn typeFn = [](void *const self_, LemniTypeSet types) -> LemniType{
+		auto self = reinterpret_cast<LemniTypedExtFnDeclExpr>(self_);
+		auto fnType = self->fnType;
+		// TODO: ensure 'fnType' exists in 'types'
+		(void)types;
+		return fnType;
+	};
+
+	LemniEvalFn evalFn;
+
+	auto name = std::string(id());
+
+	void *data = const_cast<LemniTypedExtFnDeclExprT*>(this);
+
+	auto numParams = lemniFunctionTypeNumParams(fnType);
+
+	auto resultType = lemniFunctionTypeResult(fnType);
+
+	std::vector<LemniType> paramTypes;
+	paramTypes.reserve(numParams);
+
+	for(std::size_t i = 0; i < numParams; i++){
+		paramTypes.emplace_back(lemniFunctionTypeParam(fnType, i));
+	}
+
+#define LEMNI_FN_CASE(n)\
+		case n:{\
+			data = ptr;\
+			evalFn = LemniTypeApp<\
+				std::false_type,\
+				Partial<FFICallerGet, std::integral_constant<std::size_t, n>>\
+			>::apply(resultType, std::span<LemniType, n>(begin(paramTypes), n));\
+			break;\
+		}
+
+	switch(lemniFunctionTypeNumParams(fnType)){
+		LEMNI_FN_CASE(1)
+		//LEMNI_FN_CASE(2)
+		/*
+		LEMNI_FN_CASE(3)
+		LEMNI_FN_CASE(4)
+		LEMNI_FN_CASE(5)
+		LEMNI_FN_CASE(6)
+		LEMNI_FN_CASE(7)
+		LEMNI_FN_CASE(8)
+		LEMNI_FN_CASE(9)
+		LEMNI_FN_CASE(10)
+		LEMNI_FN_CASE(11)
+		LEMNI_FN_CASE(12)
+		LEMNI_FN_CASE(13)
+		LEMNI_FN_CASE(14)
+		LEMNI_FN_CASE(15)
+		LEMNI_FN_CASE(16)
+		*/
+		default:{ evalFn = FFICaller::get(resultType, this); break; }
+	}
+
+#undef LEMNI_FN_CASE
+
+	auto val = lemniCreateValueFn(typeFn, evalFn, data, state, bindings);
+	return makeResult(val);
+}
+
+LemniEvalBindings lemniEvalGlobalBindings(LemniEvalState state){
+	return &state->globalBindings;
+}
+
+LemniEvalResult lemniEval(LemniEvalState state, LemniTypedExpr expr){
+	return expr->eval(state, &state->globalBindings);
 }

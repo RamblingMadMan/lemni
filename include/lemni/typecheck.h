@@ -34,6 +34,8 @@ extern "C" {
 //! Opaque type representing typechecking state.
 typedef struct LemniTypecheckStateT *LemniTypecheckState;
 
+typedef const struct LemniTypecheckStateT *LemniTypecheckStateConst;
+
 //! Type representing a typechecking error
 typedef struct {
 	LemniLocation loc;
@@ -58,7 +60,7 @@ typedef struct {
  * @param numExprs number of expressions in \p exprs array
  * @returns newly created typechecking state
  */
-LemniTypecheckState lemniCreateTypecheckState(LemniTypeSet types, const LemniExpr *const exprs, const size_t numExprs);
+LemniTypecheckState lemniCreateTypecheckState(LemniTypeSet types);
 
 /**
  * @brief Destroy state previously created with \ref lemniCreateTypecheckState .
@@ -67,12 +69,29 @@ LemniTypecheckState lemniCreateTypecheckState(LemniTypeSet types, const LemniExp
  */
 void lemniDestroyTypecheckState(LemniTypecheckState state);
 
+LemniTypedExtFnDeclExpr lemniCreateTypedExtFn(
+	LemniTypecheckState state, const LemniStr name, void *const ptr,
+	const LemniType resultType,
+	const LemniNat64 numParams,
+	const LemniType *const paramTypes,
+	const LemniStr *const paramNames
+);
+
 /**
  * @brief Typecheck a single expression from \p state .
  * @param state the state to modify
  * @returns the result of the typechecking operation
  */
-LemniTypecheckResult lemniTypecheck(LemniTypecheckState state);
+LemniTypecheckResult lemniTypecheck(LemniTypecheckState state, LemniExpr expr);
+
+/**
+ * @brief Check the result type of a unary op on a type
+ * @param types typeset to get the type from
+ * @param value value type of the unary op
+ * @param op the operator to check against
+ * @return the result of the type operation or NULL if the operation is undefined
+ */
+LemniType lemniUnaryOpResultType(LemniTypeSet types, LemniType value, LemniUnaryOp op);
 
 /**
  * @brief Check the result type of a binary op between two types
@@ -80,7 +99,7 @@ LemniTypecheckResult lemniTypecheck(LemniTypecheckState state);
  * @param lhs left hand side type of the operation
  * @param rhs right hand side type of the operation
  * @param op the operator to check against
- * @returns the result type of the operation
+ * @returns the result type of the operation or NULL if the operation is undefined
  */
 LemniType lemniBinaryOpResultType(LemniTypeSet types, LemniType lhs, LemniType rhs, LemniBinaryOp op);
 
@@ -97,8 +116,8 @@ namespace lemni{
 
 	class TypecheckState{
 		public:
-			TypecheckState(LemniTypeSet types, const Expr *const exprs, const size_t numExprs)
-				: m_state(lemniCreateTypecheckState(types, exprs, numExprs)){}
+			explicit TypecheckState(LemniTypeSet types)
+				: m_state(lemniCreateTypecheckState(types)){}
 
 			TypecheckState(TypecheckState &&other) noexcept
 				: m_state(other.m_state)
@@ -118,39 +137,47 @@ namespace lemni{
 
 			TypecheckState &operator=(const TypecheckState&) = delete;
 
+			operator LemniTypecheckState() noexcept{ return m_state; }
+			operator LemniTypecheckStateConst() const noexcept{ return m_state; }
+
 		private:
 			LemniTypecheckState m_state;
 
 			friend inline std::variant<TypedExpr, TypecheckError> typecheck(TypecheckState &state) noexcept;
 	};
 
-	inline std::variant<TypedExpr, TypecheckError> typecheck(TypecheckState &state) noexcept{
-		auto res = lemniTypecheck(state.m_state);
+	inline std::variant<TypedExpr, TypecheckError> typecheck(LemniTypecheckState state, LemniExpr expr) noexcept{
+		auto res = lemniTypecheck(state, expr);
 		if(res.hasError)
 			return res.error;
 		else
 			return res.expr;
 	}
 
-	inline std::variant<std::pair<TypecheckState, std::vector<TypedExpr>>, TypecheckError> typecheckAll(LemniTypeSet types, const std::vector<Expr> &exprs){
-		auto state = TypecheckState(types, exprs.data(), exprs.size());
-		std::vector<TypedExpr> typed;
-		typed.reserve(exprs.size());
+	inline std::variant<std::vector<TypedExpr>, TypecheckError> typecheckAll(LemniTypecheckState state, const std::vector<Expr> &exprs){
+		std::vector<TypedExpr> typedExprs;
+		typedExprs.reserve(exprs.size());
 
-		while(1){
-			auto res = typecheck(state);
-
-			if(auto err = std::get_if<TypecheckError>(&res))
-				return *err;
+		for(auto expr : exprs){
+			auto res = lemniTypecheck(state, expr);
+			if(res.hasError)
+				return res.error;
 			else{
-				auto t = *std::get_if<TypedExpr>(&res);
-
-				if(!t) break;
-				else typed.emplace_back(t);
+				auto typed = res.expr;
+				if(!typed) break;
+				else typedExprs.emplace_back(typed);
 			}
 		}
 
-		return std::make_pair(std::move(state), std::move(typed));
+		return std::move(typedExprs);
+	}
+
+	inline std::pair<TypecheckState, std::variant<std::vector<TypedExpr>, TypecheckError>> typecheckAll(LemniTypeSet types, const std::vector<Expr> &exprs){
+		auto state = TypecheckState(types);
+
+		auto res = typecheckAll(state, exprs);
+
+		return std::make_pair(std::move(state), std::move(res));
 	}
 }
 #endif // !LEMNI_NO_CPP

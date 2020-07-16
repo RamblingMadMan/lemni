@@ -2,6 +2,8 @@
 build
 cmake-build-*
 docs
+utils/*.h
+utils/*.hpp
 
 # Desktop/IDE related files
 CMakeLists.txt.user

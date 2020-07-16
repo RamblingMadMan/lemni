@@ -35,7 +35,7 @@ extern "C" {
 /**
  * @brief Type representing a non-owning view of a string.
  */
-typedef struct {
+typedef struct LemniStrT{
 	const char *ptr;
 	uintptr_t len;
 } LemniStr;
@@ -86,6 +86,18 @@ inline int lemniStrCmp(LemniStr lhs, LemniStr rhs){
 
 namespace lemni{
 	using Str = LemniStr;
+
+	inline Str fromStdStrView(std::string_view str) noexcept{
+		return {str.data(), str.size()};
+	}
+
+	inline std::string toStdStr(Str str) noexcept{
+		return {str.ptr, str.len};
+	}
+
+	inline std::string_view toStdStrView(Str str) noexcept{
+		return {str.ptr, str.len};
+	}
 }
 
 inline bool operator<(const LemniStr &lhs, const LemniStr &rhs) noexcept{

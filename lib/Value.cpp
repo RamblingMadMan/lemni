@@ -21,231 +21,25 @@
 
 #include <new>
 #include <memory>
+#include <unordered_map>
 
+#include "lemni/Scope.h"
 #include "lemni/Value.h"
 #include "lemni/Operator.h"
 
-namespace {
-	using std::to_string;
+#include "Value.hpp"
 
-	std::string to_string(const LemniRatio32 q){
-		auto qCanon = lemni::interop::simplifyRatio(q);
-		return std::to_string(qCanon.num) + "/" + std::to_string(qCanon.den);
-	}
-
-	std::string to_string(const LemniRatio64 q){
-		auto qCanon = lemni::interop::simplifyRatio(q);
-		return std::to_string(qCanon.num) + "/" + std::to_string(qCanon.den);
-	}
-
-	std::string to_string(const LemniRatio128 &q){
-		auto qCanon = lemni::interop::simplifyRatio(q);
-		return std::to_string(qCanon.num) + "/" + std::to_string(qCanon.den);
-	}
+LemniValueCallResult LemniValueFnT::call(LemniValue *const args, const LemniNat32 numArgs) const noexcept{
+	return fn(ptr, state, bindings, args, numArgs);
 }
 
-struct LemniValueT{
-	virtual ~LemniValueT() = default;
-
-	virtual LemniValue copy() const noexcept{ return nullptr; }
-
-	virtual LemniValue deref() const noexcept{ return this; }
-
-	virtual std::size_t numBits() const noexcept = 0;
-
-	virtual std::string toString() const noexcept = 0;
-
-	virtual LemniValue performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
-		(void)op;
-		(void)rhs;
-		return nullptr;
+LemniValue LemniValueBoolT::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op == LEMNI_UNARY_NOT){
+		return lemni::detail::createLemniValue(!value);
 	}
-};
 
-struct LemniValueRefT: LemniValueT{
-	LemniValueRefT(LemniValue refed_) noexcept
-		: refed(refed_){}
-
-	LemniValue copy() const noexcept override{ return lemniCreateValueRef(refed); }
-
-	LemniValue deref() const noexcept override{ return refed; }
-
-	std::size_t numBits() const noexcept override{ return refed->numBits(); }
-
-	std::string toString() const noexcept override{ return refed->toString(); };
-
-	LemniValue performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept override{ return refed->performBinaryOp(op, rhs); }
-
-	LemniValue refed;
-};
-
-using LemniValueRef = const LemniValueRefT*;
-
-struct LemniValueUnitT: LemniValueT{
-	LemniValue copy() const noexcept override{ return lemniCreateValueUnit(); }
-
-	std::size_t numBits() const noexcept override{ return 0; }
-
-	std::string toString() const noexcept override{ return "()"; }
-};
-
-using LemniValueUnit = const LemniValueUnitT*;
-
-struct LemniValueBoolT: LemniValueT{
-	LemniValueBoolT(LemniBool value_) noexcept: value(value_){}
-
-	LemniValue copy() const noexcept override{ return lemniCreateValueBool(value); }
-
-	std::size_t numBits() const noexcept override{ return sizeof(LemniBool) * CHAR_BIT; }
-
-	std::string toString() const noexcept override{ return value ? "true" : "false"; }
-
-	LemniValue performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept override;
-
-	LemniBool value;
-};
-
-using LemniValueBool = const LemniValueBoolT*;
-
-struct LemniValueNatT: LemniValueT{};
-using LemniValueNat = const LemniValueNatT*;
-
-struct LemniValueIntT: LemniValueT{};
-using LemniValueInt = const LemniValueIntT*;
-
-struct LemniValueRatioT: LemniValueT{};
-using LemniValueRatio = const LemniValueRatioT*;
-
-struct LemniValueRealT: LemniValueT{};
-using LemniValueReal = const LemniValueRealT*;
-
-struct LemniValueANatT: LemniValueNatT{
-	LemniValueANatT(LemniAIntConst value_)
-		: value(lemni::AInt::from(lemniCreateAIntCopy(value_))){}
-
-	LemniValue copy() const noexcept override{ return lemniCreateValueANat(value.handle()); }
-
-	std::size_t numBits() const noexcept override{ return SIZE_MAX; }
-
-	std::string toString() const noexcept override{ return value.toString(); }
-
-	LemniValue performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept override;
-
-	lemni::AInt value;
-};
-
-using LemniValueANat = const LemniValueANatT*;
-
-struct LemniValueAIntT: LemniValueIntT{
-	LemniValueAIntT(LemniAIntConst value_)
-		: value(lemni::AInt::from(lemniCreateAIntCopy(value_))){}
-
-	LemniValueAIntT(lemni::AInt value_)
-		: value(std::move(value_)){}
-
-	LemniValue copy() const noexcept override{ return lemniCreateValueAInt(value.handle()); }
-
-	std::size_t numBits() const noexcept override{ return SIZE_MAX; }
-
-	std::string toString() const noexcept override{ return value.toString(); }
-
-	LemniValue performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept override;
-
-	lemni::AInt value;
-};
-
-using LemniValueAInt = const LemniValueAIntT*;
-
-struct LemniValueARatioT: LemniValueRatioT{
-	LemniValueARatioT(LemniARatioConst value_)
-		: value(lemni::ARatio::from(lemniCreateARatioCopy(value_))){}
-
-	LemniValueARatioT(lemni::ARatio value_)
-		: value(std::move(value_)){}
-
-	LemniValue copy() const noexcept override{ return lemniCreateValueARatio(value.handle()); }
-
-	std::size_t numBits() const noexcept override{ return SIZE_MAX; }
-
-	std::string toString() const noexcept override{ return value.toString(); }
-
-	LemniValue performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept override;
-
-	lemni::ARatio value;
-};
-
-using LemniValueARatio = const LemniValueARatioT*;
-
-struct LemniValueARealT: LemniValueRealT{
-	LemniValueARealT(LemniARealConst value_)
-		: value(lemni::AReal::from(lemniCreateARealCopy(value_))){}
-
-	LemniValueARealT(lemni::AReal value_)
-		: value(std::move(value_)){}
-
-	LemniValue copy() const noexcept override{ return lemniCreateValueAReal(value.handle()); }
-
-	std::size_t numBits() const noexcept override{ return SIZE_MAX; }
-
-	std::string toString() const noexcept override{ return value.toString(); }
-
-	LemniValue performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept override;
-
-	lemni::AReal value;
-};
-
-using LemniValueAReal = const LemniValueARealT*;
-
-template<size_t N>
-struct LemniBasicValueNat;
-
-template<size_t N>
-struct LemniBasicValueInt;
-
-template<size_t N>
-struct LemniBasicValueRatio;
-
-template<size_t N>
-struct LemniBasicValueReal;
-
-#define DEF_LEMNI_BASIC_VALUE(valTy, bits)\
-template<>\
-struct LemniBasicValue##valTy<bits>: LemniValue##valTy##T{\
-	LemniBasicValue##valTy(Lemni##valTy##bits value_) noexcept\
-		: value(value_){}\
-	\
-	~LemniBasicValue##valTy() = default;\
-	\
-	LemniValue copy() const noexcept override{ return lemniCreateValue##valTy##bits(value); }\
-	\
-	std::size_t numBits() const noexcept override{ return sizeof(value) * CHAR_BIT; }\
-	\
-	std::string toString() const noexcept override{ return to_string(value); }\
-	\
-	LemniValue performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept override;\
-	\
-	using Value = Lemni##valTy##bits;\
-	\
-	Lemni##valTy##bits value;\
-};\
-using LemniValue##valTy##bits = const LemniBasicValue##valTy<bits>*
-
-DEF_LEMNI_BASIC_VALUE(Nat, 16);
-DEF_LEMNI_BASIC_VALUE(Nat, 32);
-DEF_LEMNI_BASIC_VALUE(Nat, 64);
-
-DEF_LEMNI_BASIC_VALUE(Int, 16);
-DEF_LEMNI_BASIC_VALUE(Int, 32);
-DEF_LEMNI_BASIC_VALUE(Int, 64);
-
-DEF_LEMNI_BASIC_VALUE(Ratio, 32);
-DEF_LEMNI_BASIC_VALUE(Ratio, 64);
-DEF_LEMNI_BASIC_VALUE(Ratio, 128);
-
-DEF_LEMNI_BASIC_VALUE(Real, 32);
-DEF_LEMNI_BASIC_VALUE(Real, 64);
-
-#undef DEF_LEMNI_BASIC_VALUE
+	return nullptr;
+}
 
 LemniValue LemniValueBoolT::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
 	if(auto rhsBool = dynamic_cast<LemniValueBool>(rhs)){
@@ -1705,6 +1499,13 @@ namespace {
 	}
 }
 
+LemniValue LemniBasicValueNat<16>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(-int32_t(value));
+}
+
 LemniValue LemniBasicValueNat<16>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
 	if(auto rhsNat = dynamic_cast<LemniValueNat>(rhs)){
 		return performOpNatNat(op, this, rhsNat);
@@ -1723,6 +1524,13 @@ LemniValue LemniBasicValueNat<16>::performBinaryOp(const LemniBinaryOp op, const
 	}
 
 	return nullptr;
+}
+
+LemniValue LemniBasicValueNat<32>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(-int64_t(value));
 }
 
 LemniValue LemniBasicValueNat<32>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
@@ -1745,6 +1553,13 @@ LemniValue LemniBasicValueNat<32>::performBinaryOp(const LemniBinaryOp op, const
 	return nullptr;
 }
 
+LemniValue LemniBasicValueNat<64>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(-lemni::AInt(value));
+}
+
 LemniValue LemniBasicValueNat<64>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
 	if(auto rhsNat = dynamic_cast<LemniValueNat>(rhs)){
 		return performOpNatNat(op, this, rhsNat);
@@ -1765,6 +1580,13 @@ LemniValue LemniBasicValueNat<64>::performBinaryOp(const LemniBinaryOp op, const
 	return nullptr;
 }
 
+LemniValue LemniValueANatT::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(-value);
+}
+
 LemniValue LemniValueANatT::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
 	if(auto rhsNat = dynamic_cast<LemniValueNat>(rhs)){
 		return performOpNatNat(op, this, rhsNat);
@@ -1783,6 +1605,13 @@ LemniValue LemniValueANatT::performBinaryOp(const LemniBinaryOp op, const LemniV
 	}
 
 	return nullptr;
+}
+
+LemniValue LemniBasicValueInt<16>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(int16_t(-value));
 }
 
 LemniValue LemniBasicValueInt<16>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
@@ -1825,6 +1654,13 @@ LemniValue LemniBasicValueInt<16>::performBinaryOp(const LemniBinaryOp op, const
 	return nullptr;
 }
 
+LemniValue LemniBasicValueInt<32>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(int32_t(-value));
+}
+
 LemniValue LemniBasicValueInt<32>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
 	if(auto rhsNat = dynamic_cast<LemniValueNat>(rhs)){
 		switch(rhsNat->numBits()){
@@ -1863,6 +1699,13 @@ LemniValue LemniBasicValueInt<32>::performBinaryOp(const LemniBinaryOp op, const
 	}
 
 	return nullptr;
+}
+
+LemniValue LemniBasicValueInt<64>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(int64_t(-value));
 }
 
 LemniValue LemniBasicValueInt<64>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
@@ -1905,6 +1748,13 @@ LemniValue LemniBasicValueInt<64>::performBinaryOp(const LemniBinaryOp op, const
 	return nullptr;
 }
 
+LemniValue LemniValueAIntT::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(-value);
+}
+
 LemniValue LemniValueAIntT::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
 	if(auto rhsNat = dynamic_cast<LemniValueNat>(rhs)){
 		switch(rhsNat->numBits()){
@@ -1943,6 +1793,13 @@ LemniValue LemniValueAIntT::performBinaryOp(const LemniBinaryOp op, const LemniV
 	}
 
 	return nullptr;
+}
+
+LemniValue LemniBasicValueRatio<32>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(LemniRatio32{int16_t(-value.num), value.den});
 }
 
 LemniValue LemniBasicValueRatio<32>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
@@ -2005,6 +1862,13 @@ LemniValue LemniBasicValueRatio<32>::performBinaryOp(const LemniBinaryOp op, con
 	return nullptr;
 }
 
+LemniValue LemniBasicValueRatio<64>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(LemniRatio64{-value.num, value.den});
+}
+
 LemniValue LemniBasicValueRatio<64>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
 	if(auto rhsNat = dynamic_cast<LemniValueNat>(rhs)){
 		switch(rhsNat->numBits()){
@@ -2063,6 +1927,13 @@ LemniValue LemniBasicValueRatio<64>::performBinaryOp(const LemniBinaryOp op, con
 	}
 
 	return nullptr;
+}
+
+LemniValue LemniBasicValueRatio<128>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(LemniRatio128{-value.num, value.den});
 }
 
 LemniValue LemniBasicValueRatio<128>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
@@ -2125,6 +1996,13 @@ LemniValue LemniBasicValueRatio<128>::performBinaryOp(const LemniBinaryOp op, co
 	return nullptr;
 }
 
+LemniValue LemniValueARatioT::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(-value);
+}
+
 LemniValue LemniValueARatioT::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
 	if(auto rhsNat = dynamic_cast<LemniValueNat>(rhs)){
 		switch(rhsNat->numBits()){
@@ -2183,6 +2061,13 @@ LemniValue LemniValueARatioT::performBinaryOp(const LemniBinaryOp op, const Lemn
 	}
 
 	return nullptr;
+}
+
+LemniValue LemniBasicValueReal<32>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(-double(this->value));
 }
 
 LemniValue LemniBasicValueReal<32>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
@@ -2265,6 +2150,13 @@ LemniValue LemniBasicValueReal<32>::performBinaryOp(const LemniBinaryOp op, cons
 	return nullptr;
 }
 
+LemniValue LemniBasicValueReal<64>::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(-lemni::AReal(this->value));
+}
+
 LemniValue LemniBasicValueReal<64>::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
 	if(auto rhsNat = dynamic_cast<LemniValueNat>(rhs)){
 		switch(rhsNat->numBits()){
@@ -2343,6 +2235,13 @@ LemniValue LemniBasicValueReal<64>::performBinaryOp(const LemniBinaryOp op, cons
 	}
 
 	return nullptr;
+}
+
+LemniValue LemniValueARealT::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	if(op != LEMNI_UNARY_NEG)
+		return nullptr;
+
+	return lemni::detail::createLemniValue(-value);
 }
 
 LemniValue LemniValueARealT::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
@@ -2425,26 +2324,127 @@ LemniValue LemniValueARealT::performBinaryOp(const LemniBinaryOp op, const Lemni
 	return nullptr;
 }
 
+LemniValue LemniValueStrASCIIT::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	(void)op;
+	return nullptr;
+}
+
+LemniValue LemniValueStrASCIIT::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
+	switch(op){
+		case LEMNI_BINARY_CONCAT:{
+			if(auto rhsAscii = dynamic_cast<LemniValueStrASCII>(rhs)){
+				auto newValue = this->value + rhsAscii->value;
+				return allocValue<LemniValueStrASCIIT>(std::move(newValue));
+			}
+			else if(auto rhsUtf8 = dynamic_cast<LemniValueStrUTF8>(rhs)){
+				auto newValue = this->value + rhsUtf8->value;
+				return allocValue<LemniValueStrUTF8T>(std::move(newValue));
+			}
+			else{
+				return nullptr;
+			}
+		}
+
+		default: return nullptr;
+	}
+}
+
+LemniValue LemniValueStrUTF8T::performUnaryOp(const LemniUnaryOp op) const noexcept{
+	(void)op;
+	return nullptr;
+}
+
+LemniValue LemniValueStrUTF8T::performBinaryOp(const LemniBinaryOp op, const LemniValue rhs) const noexcept{
+	switch(op){
+		case LEMNI_BINARY_CONCAT:{
+			if(auto rhsAscii = dynamic_cast<LemniValueStrUTF8>(rhs)){
+				auto newValue = this->value + rhsAscii->value;
+				return allocValue<LemniValueStrUTF8T>(std::move(newValue));
+			}
+			else if(auto rhsUtf8 = dynamic_cast<LemniValueStrASCII>(rhs)){
+				auto newValue = this->value + rhsUtf8->value;
+				return allocValue<LemniValueStrUTF8T>(std::move(newValue));
+			}
+			else{
+				return nullptr;
+			}
+		}
+
+		default: return nullptr;
+	}
+}
+
+struct LemniValueBindingsT{
+	std::unordered_map<std::string, lemni::Value> bound;
+};
+
+LemniValueBindings lemniCreateValueBindings(){
+	auto mem = std::malloc(sizeof(LemniValueBindingsT));
+	if(!mem) return nullptr;
+
+	auto p = new(mem) LemniValueBindingsT;
+
+	return p;
+}
+
+void lemniDestroyValueBindings(LemniValueBindings bindings){
+	std::destroy_at(bindings);
+	std::free(bindings);
+}
+
+void lemniSetValueBinding(LemniValueBindings bindings, const LemniStr name, LemniValue value){
+	bindings->bound[lemni::toStdStr(name)] = lemni::Value::from(value);
+}
+
+LemniValue lemniGetValueBinding(LemniValueBindings bindings, const LemniStr name){
+	auto res = bindings->bound.find(lemni::toStdStr(name));
+	if(res != end(bindings->bound)){
+		return lemniCreateValueRef(res->second.handle());
+	}
+
+	return nullptr;
+}
+
 void lemniDestroyValue(LemniValue value){
 	std::destroy_at(value);
 	std::free(const_cast<void*>(reinterpret_cast<const void*>(value)));
-}
-
-namespace {
-	template<typename T, typename ... Args>
-	auto allocValue(Args &&... args){
-		auto mem = std::malloc(sizeof(T));
-		return new(mem) T(std::forward<Args>(args)...);
-	}
 }
 
 LemniValue lemniCreateValueCopy(LemniValue value){ return value->copy(); }
 
 LemniValue lemniCreateValueRef(LemniValue value){ return allocValue<LemniValueRefT>(value->deref()); }
 
+LemniValue lemniCreateValueModule(LemniModule handle){
+	auto mod = lemni::Module::from(handle);
+
+	const auto exprs = lemniModuleExprs(mod.handle());
+	const auto numExprs = lemniModuleNumExprs(mod.handle());
+
+	auto bindings = lemni::ValueBindings();
+	auto evalState = lemni::EvalState(mod.types());
+
+	for(std::size_t i = 0; i < numExprs; i++){
+		auto expr = exprs[i];
+		auto valRes = lemniEval(evalState, expr);
+		if(valRes.hasError){
+			return nullptr;
+		}
+	}
+
+	return allocValue<LemniValueModuleT>(std::move(mod), std::move(bindings));
+}
+
 LemniValue lemniCreateValueUnit(void){ return allocValue<LemniValueUnitT>(); }
 
 LemniValue lemniCreateValueBool(const LemniBool b){ return allocValue<LemniValueBoolT>(b); }
+
+LemniValue lemniCreateValueFn(LemniTypeFn typeFn, LemniEvalFn fn, void *const ptr, LemniEvalState state, LemniEvalBindings bindings){
+	return allocValue<LemniValueFnT>(typeFn, fn, ptr, state, bindings);
+}
+
+LemniValue lemniCreateValueProduct(const LemniValueConst *const vals, const LemniNat64 numVals){
+	return allocValue<LemniValueProductT>(vals, numVals);
+}
 
 LemniValue lemniCreateValueNat16(const LemniNat16 n16){ return allocValue<LemniBasicValueNat<16>>(n16); }
 LemniValue lemniCreateValueNat32(const LemniNat32 n32){ return allocValue<LemniBasicValueNat<32>>(n32); }
@@ -2453,7 +2453,7 @@ LemniValue lemniCreateValueANat(LemniAIntConst aint){ return allocValue<LemniVal
 
 LemniValue lemniCreateValueInt16(const LemniInt16 i16){ return allocValue<LemniBasicValueInt<16>>(i16); }
 LemniValue lemniCreateValueInt32(const LemniInt32 i32){ return allocValue<LemniBasicValueInt<32>>(i32); }
-LemniValue lemniCreateValueInt64(const LemniInt64 i64){ return allocValue<LemniBasicValueInt<16>>(i64); }
+LemniValue lemniCreateValueInt64(const LemniInt64 i64){ return allocValue<LemniBasicValueInt<64>>(i64); }
 LemniValue lemniCreateValueAInt(LemniAIntConst aint){ return allocValue<LemniValueAIntT>(aint); }
 
 LemniValue lemniCreateValueRatio32(const LemniRatio32 q32){ return allocValue<LemniBasicValueRatio<32>>(q32); }
@@ -2465,12 +2465,47 @@ LemniValue lemniCreateValueReal32(const LemniReal32 r32){ return allocValue<Lemn
 LemniValue lemniCreateValueReal64(const LemniReal64 r64){ return allocValue<LemniBasicValueReal<64>>(r64); }
 LemniValue lemniCreateValueAReal(LemniARealConst areal){ return allocValue<LemniValueARealT>(areal); }
 
+LemniValue lemniCreateValueStrASCII(const LemniStr str){ return allocValue<LemniValueStrASCIIT>(str); }
+LemniValue lemniCreateValueStrUTF8(const LemniStr str){ return allocValue<LemniValueStrUTF8T>(str); }
+
+LemniValue lemniCreateValueType(LemniType type){ return allocValue<LemniValueTypeT>(type); };
+
 void lemniValueStr(LemniValue value, void *user, LemniValueStrCB cb){
 	auto str = value->toString();
 	cb(user, {str.c_str(), str.size()});
 }
 
-LemniValue lemniValueBinaryOp(LemniBinaryOp op, LemniValue lhs, LemniValue rhs){
+LemniValueCallResult lemniValueCall(LemniValue fn, LemniValue *const args, const LemniNat32 numArgs){
+	return fn->call(args, numArgs);
+}
+
+LemniValue lemniValueAccess(LemniValue val, LemniStr member){
+	return val->access(member);
+}
+
+LemniInt16 lemniValueIsTrue(LemniValueConst val){
+	if(auto bool_ = dynamic_cast<LemniValueBool>(val)){
+		return bool_->value;
+	}
+	else{
+		return -1;
+	}
+}
+
+LemniInt16 lemniValueIsFalse(LemniValueConst val){
+	if(auto bool_ = dynamic_cast<LemniValueBool>(val)){
+		return !bool_->value;
+	}
+	else{
+		return -1;
+	}
+}
+
+LemniValue lemniValueUnaryOp(const LemniUnaryOp op, LemniValue value){
+	return value->performUnaryOp(op);
+}
+
+LemniValue lemniValueBinaryOp(const LemniBinaryOp op, LemniValue lhs, LemniValue rhs){
 	return lhs->performBinaryOp(op, rhs->deref());
 }
 

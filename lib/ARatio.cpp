@@ -102,6 +102,13 @@ void lemniARatioSet(LemniARatio res, LemniARatioConst other){
 	mpq_set(res->val, other->val);
 }
 
+LemniRatio128 lemniARatioToRatio128(LemniARatioConst aratio){
+	return {
+		mpz_get_si(mpq_numref(aratio->val)),
+		mpz_get_ui(mpq_denref(aratio->val))
+	};
+}
+
 LemniARatioNumBitsResult lemniARatioNumBits(LemniARatioConst aratio){
 	size_t numBits = mpz_sizeinbase(mpq_numref(aratio->val), 2);
 	size_t denBits = mpz_sizeinbase(mpq_denref(aratio->val), 2);

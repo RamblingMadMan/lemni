@@ -19,6 +19,7 @@
 #ifndef LEMNI_PARSE_H
 #define LEMNI_PARSE_H 1
 
+#include "Macros.h"
 #include "Token.h"
 #include "Expr.h"
 
@@ -34,7 +35,7 @@ extern "C" {
 /**
  * @brief Opaque type representing parse state.
  */
-typedef struct LemniParseStateT *LemniParseState;
+LEMNI_OPAQUE_T(LemniParseState);
 
 /**
  * @brief Type representing a parsing error.
@@ -77,14 +78,14 @@ void lemniDestroyParseState(LemniParseState state);
  * @param state the state to check
  * @returns pointer to tokens
  */
-const LemniToken *lemniParseStateTokens(LemniParseState state);
+const LemniToken *lemniParseStateTokens(LemniParseStateConst state);
 
 /**
  * @brief Get the number of remaining tokens in \p state .
  * @param state the state to check
  * @returns the number of tokens
  */
-size_t lemniParseStateNumTokens(LemniParseState state);
+size_t lemniParseStateNumTokens(LemniParseStateConst state);
 
 /**
  * @brief Parse a single expression from \p state .
@@ -127,6 +128,12 @@ namespace lemni{
 
 			ParseState &operator=(const ParseState&) = delete;
 
+			operator LemniParseState() noexcept{ return m_state; }
+
+			LemniParseState handle() noexcept{ return m_state; }
+
+			std::size_t numTokens() noexcept{ return lemniParseStateNumTokens(m_state); }
+
 		private:
 			LemniParseState m_state;
 
@@ -139,7 +146,7 @@ namespace lemni{
 		else return res.expr;
 	}
 
-	inline std::variant<std::pair<ParseState, std::vector<Expr>>, ParseError> parseAll(const std::vector<LemniToken> &toks){
+	inline std::pair<ParseState, std::variant<std::vector<Expr>, ParseError>> parseAll(const std::vector<LemniToken> &toks){
 		auto state = ParseState(toks.data(), toks.size());
 		std::vector<Expr> exprs;
 		exprs.reserve(toks.size());
@@ -148,7 +155,7 @@ namespace lemni{
 			auto res = parse(state);
 
 			if(auto err = std::get_if<ParseError>(&res))
-				return *err;
+				return std::make_pair(std::move(state), *err);
 			else{
 				auto expr = *std::get_if<Expr>(&res);
 				if(!expr) break;

@@ -21,6 +21,12 @@
 
 #include "ARatio.h"
 
+/**
+ * @defgroup AReal Arbitraty-precision real numbers
+ * Any functions returning a new \ref LemniAReal must be followed by calls to \ref lemniDestroyAReal .
+ * @{
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,27 +36,99 @@ typedef const struct LemniARealT *LemniARealConst;
 
 LemniAReal lemniCreateAReal(void);
 LemniAReal lemniCreateARealCopy(LemniARealConst other);
+
+/**
+ * @brief Create an arbitrary-precision real from a string.
+ * @param str string containing real literal
+ * @param base base of the numeric string
+ * @returns handle of newly created AReal
+ */
 LemniAReal lemniCreateARealStr(const LemniStr str, const int base);
+
 LemniAReal lemniCreateARealAInt(LemniAIntConst aint);
 LemniAReal lemniCreateARealARatio(LemniARatioConst aratio);
 LemniAReal lemniCreateARealDouble(const double d);
 LemniAReal lemniCreateARealLong(const long si);
 LemniAReal lemniCreateARealULong(const unsigned long ui);
 
+/**
+ * @brief Destroy an arbitrary-precision real.
+ * @param areal handle of AReal to destroy
+ */
 void lemniDestroyAReal(LemniAReal areal);
 
+/**
+ * @brief Perform the operation ``\p res = \p other`` .
+ * @param res handle to store result in
+ * @param other handle to value
+ */
 void lemniARealSet(LemniAReal res, LemniARealConst other);
 
 typedef void(*LemniARealStrCB)(void *user, const LemniStr str);
 
 void lemniARealStr(LemniARealConst areal, void *user, LemniARealStrCB cb);
 
+bool lemniARealRoundsToFloat(LemniARealConst areal);
+bool lemniARealRoundsToDouble(LemniARealConst areal);
+
+float lemniARealToFloat(LemniARealConst areal);
+double lemniARealToDouble(LemniARealConst areal);
+
+uint32_t lemniARealNumIntBits(LemniARealConst areal);
+uint32_t lemniARealNumFracBits(LemniARealConst areal);
+
+/**
+ * @brief Perform addition: ``\p res = \p lhs + \p rhs`` .
+ * @param res handle to store result in
+ * @param lhs left-hand side of operation
+ * @param rhs right-hand side of operation
+ */
 void lemniARealAdd(LemniAReal res, LemniARealConst lhs, LemniARealConst rhs);
+
+/**
+ * @brief Perform subtraction: ``\p res = \p lhs - \p rhs`` .
+ * @param res handle to store result in
+ * @param lhs left-hand side of operation
+ * @param rhs right-hand side of operation
+ */
 void lemniARealSub(LemniAReal res, LemniARealConst lhs, LemniARealConst rhs);
+
+/**
+ * @brief Perform multiplication:``\p res = \p lhs * \p rhs``
+ * @param res handle to store result in
+ * @param lhs left-hand side of operation
+ * @param rhs right-hand side of operation
+ */
 void lemniARealMul(LemniAReal res, LemniARealConst lhs, LemniARealConst rhs);
+
+/**
+ * @brief Perform division: ``\p res = \p lhs / \p rhs`` .
+ * @param res handle to store result in
+ * @param lhs left-hand side of operation
+ * @param rhs right-hand side of operation
+ */
 void lemniARealDiv(LemniAReal res, LemniARealConst lhs, LemniARealConst rhs);
 
+/**
+ * @brief Get the power function: ``\p res = pow \p lhs \p rhs`` .
+ * @param res handle to store result in
+ * @param lhs left-hand side of operation
+ * @param rhs right-hand side of operation
+ */
+void lemniARealPow(LemniAReal res, LemniARealConst base, LemniARealConst exp);
+
+/**
+ * @brief Get the negative of a value: ``\p res = -\p val``
+ * @param res handle to store result in
+ * @param val handle to value
+ */
 void lemniARealNeg(LemniAReal res, LemniARealConst val);
+
+/**
+ * @brief Get the absolute value of a number: ``\p res = abs \p val``
+ * @param res
+ * @param val
+ */
 void lemniARealAbs(LemniAReal res, LemniARealConst val);
 
 int lemniARealCmp(LemniARealConst lhs, LemniARealConst rhs);
@@ -112,6 +190,9 @@ namespace lemni{
 				return *this;
 			}
 
+			operator LemniAReal() noexcept{ return m_val; }
+			operator LemniARealConst() const noexcept{ return m_val; }
+
 			static AReal from(LemniAReal areal) noexcept{
 				return AReal(areal);
 			}
@@ -127,6 +208,18 @@ namespace lemni{
 				});
 				return res;
 			}
+
+			bool roundsToFloat() const noexcept{ return lemniARealRoundsToFloat(m_val); }
+
+			bool roundsToDouble() const noexcept{ return lemniARealRoundsToDouble(m_val); }
+
+			float toFloat() const noexcept{ return lemniARealToFloat(m_val); }
+
+			float toDouble() const noexcept{ return lemniARealToDouble(m_val); }
+
+			std::uint32_t numIntBits() const noexcept{ return lemniARealNumIntBits(m_val); }
+
+			std::uint32_t numFracBits() const noexcept{ return lemniARealNumFracBits(m_val); }
 
 			AReal operator -() const noexcept{
 				AReal res;

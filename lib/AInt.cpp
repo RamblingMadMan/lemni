@@ -115,6 +115,9 @@ void lemniAIntMul(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs){
 	mpz_mul(res->val, lhs->val, rhs->val);
 }
 
+void lemniAIntPow(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs){
+}
+
 void lemniAIntNeg(LemniAInt res, LemniAIntConst val){
 	mpz_neg(res->val, val->val);
 }

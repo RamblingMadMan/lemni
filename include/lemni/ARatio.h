@@ -43,6 +43,8 @@ void lemniDestroyARatio(LemniARatio aratio);
 
 void lemniARatioSet(LemniARatio res, LemniARatioConst other);
 
+LemniRatio128 lemniARatioToRatio128(LemniARatioConst aratio);
+
 typedef struct {
 	uint64_t num;
 	uint64_t den;
@@ -122,6 +124,9 @@ namespace lemni{
 				return *this;
 			}
 
+			operator LemniARatio() noexcept{ return m_val; }
+			operator LemniARatioConst() const noexcept{ return m_val; }
+
 			static ARatio from(LemniARatio aratio) noexcept{
 				return ARatio(aratio);
 			}
@@ -139,6 +144,10 @@ namespace lemni{
 
 			LemniARatioNumBitsResult numBits() const noexcept{
 				return lemniARatioNumBits(m_val);
+			}
+
+			LemniRatio128 toRatio128() const noexcept{
+				return lemniARatioToRatio128(m_val);
 			}
 
 			std::string toString() const noexcept{

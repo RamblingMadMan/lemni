@@ -16,6 +16,7 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <string>
 #include <map>
 
 #define LEMNI_NO_CPP
@@ -109,7 +110,7 @@ bool lemniBinaryOpIsLogic(LemniBinaryOp op){
 		case LEMNI_BINARY_GTEQ:
 		case LEMNI_BINARY_EQ:
 		case LEMNI_BINARY_NEQ:
-		case LEMNI_BINARY_ADD:
+		case LEMNI_BINARY_AND:
 		case LEMNI_BINARY_OR:
 			return true;
 

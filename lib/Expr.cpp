@@ -16,13 +16,13 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#define LEMNI_NO_CPP
 #include "Expr.hpp"
 
 LemniLocation lemniExprLoc(LemniExpr expr){ return expr->loc; }
 
 LemniLValueExpr lemniExprAsLValue(LemniExpr expr){ return dynamic_cast<LemniLValueExpr>(expr); }
 LemniExpr lemniLValueExprBase(LemniLValueExpr lvalue){ return lvalue; }
+LemniStr lemniLValueExprId(LemniLValueExpr lvalue){ return lemni::fromStdStrView(lvalue->id); }
 
 LemniRefExpr lemniLValueExprAsRef(LemniLValueExpr expr){ return dynamic_cast<LemniRefExpr>(expr); }
 LemniLValueExpr lemniRefExprBase(LemniRefExpr ref){ return ref; }
@@ -45,20 +45,23 @@ LemniExpr lemniTupleExprElement(LemniTupleExpr tuple, const uint64_t idx){ retur
 LemniConstantExpr lemniLiteralExprAsConstant(LemniLiteralExpr lit){ return dynamic_cast<LemniConstantExpr>(lit); }
 LemniLiteralExpr lemniConstantExprBase(LemniConstantExpr constant){ return constant; }
 
+LemniUnitExpr lemniConstantExprAsUnit(LemniConstantExpr constant){ return dynamic_cast<LemniUnitExpr>(constant); }
+LemniExpr lemniUnitExprBase(LemniUnitExpr unit){ return unit; }
+
 LemniNumExpr lemniConstantExprAsNum(LemniConstantExpr constant){ return dynamic_cast<LemniNumExpr>(constant); }
 LemniConstantExpr lemniNumExprBase(LemniNumExpr num){ return num; }
 
 LemniRealExpr lemniNumExprAsReal(LemniNumExpr num){ return dynamic_cast<LemniRealExpr>(num); }
 LemniNumExpr lemniRealExprBase(LemniRealExpr real){ return real; }
-LemniARealConst lemniRealExprValue(LemniRealExpr real){ return real->val; }
+LemniARealConst lemniRealExprValue(LemniRealExpr real){ return real->val.handle(); }
 
 LemniRatioExpr lemniNumExprAsRatio(LemniNumExpr num){ return dynamic_cast<LemniRatioExpr>(num); }
 LemniNumExpr lemniRatioExprBase(LemniRatioExpr ratio){ return ratio; }
-LemniARatioConst lemniRatioExprValue(LemniRatioExpr ratio){ return ratio->val; }
+LemniARatioConst lemniRatioExprValue(LemniRatioExpr ratio){ return ratio->val.handle(); }
 
 LemniIntExpr lemniNumExprAsInt(LemniNumExpr num){ return dynamic_cast<LemniIntExpr>(num); }
 LemniNumExpr lemniIntExprBase(LemniIntExpr int_){ return int_; }
-LemniAIntConst lemniIntExprValue(LemniIntExpr int_){ return int_->val; }
+LemniAIntConst lemniIntExprValue(LemniIntExpr int_){ return int_->val.handle(); }
 
 LemniStrExpr lemniConstantExprAsStr(LemniConstantExpr constant){ return dynamic_cast<LemniStrExpr>(constant); }
 LemniConstantExpr lemniStrExprBase(LemniStrExpr str){ return str; }
@@ -80,9 +83,14 @@ LemniBinaryOp lemniBinaryOpExprOp(LemniBinaryOpExpr binaryOp){ return binaryOp->
 LemniExpr lemniBinaryOpExprLhs(LemniBinaryOpExpr binaryOp){ return binaryOp->lhs; }
 LemniExpr lemniBinaryOpExprRhs(LemniBinaryOpExpr binaryOp){ return binaryOp->rhs; }
 
+LemniBindingExpr lemniExprAsBinding(LemniLValueExpr expr){ return dynamic_cast<LemniBindingExpr>(expr); }
+LemniLValueExpr lemniBindingExprBase(LemniBindingExpr binding){ return binding; }
+LemniStr lemniBindingExprID(LemniBindingExpr binding){ return { binding->id.data(), binding->id.size() }; }
+LemniExpr lemniBindingExprValue(LemniBindingExpr binding){ return binding->value; }
+
 LemniFnDefExpr lemniLValueExprAsFnDef(LemniLValueExpr expr){ return dynamic_cast<LemniFnDefExpr>(expr); }
 LemniLValueExpr lemniFnDefExprBase(LemniFnDefExpr fnDef){ return fnDef; }
-LemniStr lemniFnDefExprName(LemniFnDefExpr fnDef){ return LemniStr{fnDef->name.c_str(), fnDef->name.size()}; }
+LemniStr lemniFnDefExprName(LemniFnDefExpr fnDef){ return LemniStr{fnDef->id.c_str(), fnDef->id.size()}; }
 uint32_t lemniFnDefExprNumParams(LemniFnDefExpr fnDef){ return static_cast<uint32_t>(fnDef->params.size()); }
 LemniExpr lemniFnDefExprParam(LemniFnDefExpr fnDef, const uint32_t idx){ return fnDef->params[idx]; }
 LemniExpr lemniFnDefExprBody(LemniFnDefExpr fnDef){ return fnDef->body; }

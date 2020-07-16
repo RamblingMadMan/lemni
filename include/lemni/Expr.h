@@ -43,6 +43,7 @@ typedef const struct LemniUnaryOpExprT *LemniUnaryOpExpr;
 typedef const struct LemniBinaryOpExprT *LemniBinaryOpExpr;
 
 typedef const struct LemniBlockExprT *LemniBlockExpr;
+typedef const struct LemniBranchExprT *LemniBranchExpr;
 typedef const struct LemniReturnExprT *LemniReturnExpr;
 
 typedef const struct LemniLiteralExprT *LemniLiteralExpr;
@@ -72,6 +73,8 @@ typedef const struct LemniRefExprT *LemniRefExpr;
 
 typedef const struct LemniFnDefExprT *LemniFnDefExpr;
 
+typedef const struct LemniParamBindingExprT *LemniParamBindingExpr;
+
 typedef const struct LemniBindingExprT *LemniBindingExpr;
 
 typedef const struct LemniAssignmentExprT *LemniAssigmentExpr;
@@ -80,6 +83,7 @@ LemniLocation lemniExprLoc(LemniExpr expr);
 
 LemniLValueExpr lemniExprAsLValue(LemniExpr expr);
 LemniExpr lemniLValueExprBase(LemniLValueExpr lvalue);
+LemniStr lemniLValueExprId(LemniLValueExpr lvalue);
 
 LemniRefExpr lemniLValueExprAsRef(LemniLValueExpr expr);
 LemniLValueExpr lemniRefExprBase(LemniRefExpr ref);
@@ -102,7 +106,7 @@ LemniExpr lemniTupleExprElement(LemniTupleExpr tuple, const uint64_t idx);
 LemniConstantExpr lemniLiteralExprAsConstant(LemniLiteralExpr lit);
 LemniLiteralExpr lemniConstantExprBase(LemniConstantExpr constant);
 
-LemniUnitExpr LemniConstantExprAsUnit(LemniConstantExpr constant);
+LemniUnitExpr lemniConstantExprAsUnit(LemniConstantExpr constant);
 LemniExpr lemniUnitExprBase(LemniUnitExpr unit);
 
 LemniNumExpr lemniConstantExprAsNum(LemniConstantExpr constant);
@@ -140,6 +144,11 @@ LemniBinaryOp lemniBinaryOpExprOp(LemniBinaryOpExpr binaryOp);
 LemniExpr lemniBinaryOpExprLhs(LemniBinaryOpExpr binaryOp);
 LemniExpr lemniBinaryOpExprRhs(LemniBinaryOpExpr binaryOp);
 
+LemniBindingExpr lemniExprAsBinding(LemniLValueExpr expr);
+LemniLValueExpr lemniBindingExprBase(LemniBindingExpr binding);
+LemniStr lemniBindingExprID(LemniBindingExpr binding);
+LemniExpr lemniBindingExprValue(LemniBindingExpr binding);
+
 LemniFnDefExpr lemniLValueExprAsFnDef(LemniLValueExpr expr);
 LemniLValueExpr lemniFnDefExprBase(LemniFnDefExpr fnDef);
 LemniStr lemniFnDefExprName(LemniFnDefExpr fnDef);
@@ -157,6 +166,12 @@ LemniBlockExpr lemniExprAsBlock(LemniExpr expr);
 LemniExpr lemniBlockExprBase(LemniBlockExpr block);
 uint32_t lemniBlockExprNumExprs(LemniBlockExpr block);
 LemniExpr lemniBlockExprExpr(LemniBlockExpr block, const uint32_t idx);
+
+LemniBranchExpr lemniExprAsBranch(LemniExpr expr);
+LemniExpr lemniBranchExprBase(LemniBranchExpr branch);
+LemniExpr lemniBranchExprCond(LemniBranchExpr branch);
+LemniExpr lemniBranchExprTrue(LemniBranchExpr branch);
+LemniExpr lemniBranchExprFalse(LemniBranchExpr branch);
 
 LemniReturnExpr lemniExprAsReturn(LemniExpr expr);
 LemniExpr lemniReturnExprBase(LemniReturnExpr return_);

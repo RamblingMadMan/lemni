@@ -1,6 +1,7 @@
 find_package(ICU REQUIRED COMPONENTS uc)
 find_package(GMP REQUIRED)
 find_package(MPFR REQUIRED)
+find_package(ARB REQUIRED)
 
 set(
 	LEMNI_LIB_SOURCES
@@ -17,15 +18,21 @@ set(
 	parse.cpp
 	Type.hpp
 	Type.cpp
+	Scope.cpp
 	TypedExpr.hpp
+	TypedExpr.cpp
 	typecheck.cpp
 	Interop.cpp
+	Value.hpp
 	Value.cpp
+	Module.cpp
+	TypeList.hpp
 	eval.cpp
+	compile.cpp
 )
 
 add_library(lemni SHARED ${LEMNI_HEADERS} ${LEMNI_LIB_SOURCES})
 
-target_include_directories(lemni PRIVATE ${GMP_INCLUDES} ${MPFR_INCLUDES})
+target_include_directories(lemni PRIVATE ${GMP_INCLUDES} ${MPFR_INCLUDES} ${ARB_INCLUDE_DIRS})
 
-target_link_libraries(lemni PRIVATE ICU::uc utf8::cpp ${GMP_LIBRARIES} ${MPFR_LIBRARIES})
+target_link_libraries(lemni ICU::uc utf8::cpp fmt::fmt ${GMP_LIBRARIES} ${MPFR_LIBRARIES} ${ARB_LIBRARIES} ffi gccjit)

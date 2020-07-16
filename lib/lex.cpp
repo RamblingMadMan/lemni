@@ -17,18 +17,19 @@
 */
 
 #include <cstdlib>
+#include <cstdio>
 #include <new>
 #include <memory>
 #include <vector>
 #include <queue>
-#include <iostream>
-#include <sstream>
 
 #define U_CHARSET_IS_UTF8 1
 #include "unicode/uchar.h"
 #include "unicode/utypes.h"
 
 #include "utf8.h"
+
+#include "lemni/Str.h"
 
 #define LEMNI_NO_CPP
 #include "lemni/lex.h"
@@ -50,6 +51,14 @@ LemniLexState lemniCreateLexState(LemniStr str, LemniLocation startLoc){
 	p->remainder = str;
 	p->loc = startLoc;
 
+	auto invalidIdx = utf8::find_invalid(lemni::toStdStr(str));
+	if(invalidIdx != std::string::npos){
+		std::fprintf(stderr, "invalid utf8 in string\n");
+		std::destroy_at(p);
+		std::free(mem);
+		return nullptr;
+	}
+
 	return p;
 }
 
@@ -58,11 +67,11 @@ void lemniDestroyLexState(LemniLexState state){
 	std::free(state);
 }
 
-LemniStr lemniLexStateRemainder(LemniConstLexState state){
+LemniStr lemniLexStateRemainder(LemniLexStateConst state){
 	return state->remainder;
 }
 
-LemniLocation lemniLexStateNextLocation(LemniConstLexState state){
+LemniLocation lemniLexStateNextLocation(LemniLexStateConst state){
 	return state->loc;
 }
 
@@ -142,16 +151,25 @@ namespace {
 		auto strLen = static_cast<size_t>(std::distance(beg, it));
 		auto str = LemniStr{.ptr = beg, .len = strLen};
 
-		if(str.ptr[0] == '0'){
+		auto tokenType = LEMNI_TOKEN_NAT;
+
+		if(str.ptr[0] == '0' && strLen > 1){
 			auto baseSig = str.ptr[1];
 
 			switch(baseSig){
 				case 'b':
 				case 'B':
+					tokenType = LEMNI_TOKEN_BINARY;
+					break;
+
 				case 'c':
 				case 'C':
+					tokenType = LEMNI_TOKEN_OCTAL;
+					break;
+
 				case 'x':
 				case 'X':
+					tokenType = LEMNI_TOKEN_HEX;
 					break;
 
 				default:{
@@ -164,7 +182,7 @@ namespace {
 			}
 		}
 
-		return makeResult(LemniToken{.type = LEMNI_TOKEN_NAT, .text = str, .loc = loc});
+		return makeResult(LemniToken{.type = tokenType, .text = str, .loc = loc});
 	}
 }
 
@@ -464,38 +482,6 @@ LemniLexResult lemniLex(LemniLexState state){
 				.loc = bracketLoc
 			});
 	}
-	else if(u_ispunct(cp) || u_hasBinaryProperty(cp, UCHAR_MATH)){
-		auto opLoc = state->loc;
-		auto opStrBeg = it;
-
-		utf8::advance(it, 1, end);
-
-		++state->loc.col;
-
-		while(it != end){
-			cp = utf8::peek_next(it, end);
-			if(!u_ispunct(cp) && !u_hasBinaryProperty(cp, UCHAR_MATH))
-				break;
-
-			++state->loc.col;
-			utf8::advance(it, 1, end);
-		}
-
-		auto remLen = std::distance(it, end);
-		state->remainder.ptr = it;
-		state->remainder.len = static_cast<size_t>(remLen);
-
-		state->onNewLine = false;
-
-		auto opStrLen = static_cast<size_t>(std::distance(opStrBeg, it));
-
-		return makeResult(
-			LemniToken{
-				.type = LEMNI_TOKEN_OP,
-				.text = LemniStr{.ptr = opStrBeg, .len = opStrLen},
-				.loc = opLoc
-			});
-	}
 	else if(u_hasBinaryProperty(cp, UCHAR_QUOTATION_MARK)){ // string
 		UChar32 mirrored = u_charMirror(cp);
 
@@ -551,6 +537,38 @@ LemniLexResult lemniLex(LemniLexState state){
 				.type = LEMNI_TOKEN_STR,
 				.text = LemniStr{ .ptr = litStrBeg, .len = litStrLen },
 				.loc = litLoc
+			});
+	}
+	else if(u_ispunct(cp) || u_hasBinaryProperty(cp, UCHAR_MATH)){
+		auto opLoc = state->loc;
+		auto opStrBeg = it;
+
+		utf8::advance(it, 1, end);
+
+		++state->loc.col;
+
+		while(it != end){
+			cp = utf8::peek_next(it, end);
+			if(!u_ispunct(cp) && !u_hasBinaryProperty(cp, UCHAR_MATH))
+				break;
+
+			++state->loc.col;
+			utf8::advance(it, 1, end);
+		}
+
+		auto remLen = std::distance(it, end);
+		state->remainder.ptr = it;
+		state->remainder.len = static_cast<size_t>(remLen);
+
+		state->onNewLine = false;
+
+		auto opStrLen = static_cast<size_t>(std::distance(opStrBeg, it));
+
+		return makeResult(
+			LemniToken{
+				.type = LEMNI_TOKEN_OP,
+				.text = LemniStr{.ptr = opStrBeg, .len = opStrLen},
+				.loc = opLoc
 			});
 	}
 	else if(u_iscntrl(cp)){

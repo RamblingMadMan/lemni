@@ -20,11 +20,21 @@
 #define LEMNI_LIB_AREAL_HPP 1
 
 #include "mpfr.h"
+#include "arb.h"
 
 #include "lemni/AReal.h"
 
 struct LemniARealT{
-	mpfr_t val;
+	arb_t val;
 };
+
+namespace {
+	LemniAReal createAReal(){
+		auto mem = std::malloc(sizeof(LemniARealT));
+		auto ret = new(mem) LemniARealT;
+		arb_init(ret->val);
+		return ret;
+	}
+}
 
 #endif // !LEMNI_LIB_AREAL_HPP

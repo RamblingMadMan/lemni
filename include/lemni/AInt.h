@@ -55,6 +55,8 @@ void lemniAIntAdd(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs);
 void lemniAIntSub(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs);
 void lemniAIntMul(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs);
 
+void lemniAIntPow(LemniAInt res, LemniAIntConst lhs, LemniAIntConst rhs);
+
 void lemniAIntNeg(LemniAInt res, LemniAIntConst val);
 void lemniAIntAbs(LemniAInt res, LemniAIntConst val);
 
@@ -108,6 +110,9 @@ namespace lemni{
 				other.m_val = nullptr;
 				return *this;
 			}
+
+			operator LemniAInt() noexcept{ return m_val; }
+			operator LemniAIntConst() const noexcept{ return m_val; }
 
 			static AInt from(LemniAInt aint) noexcept{
 				return AInt(aint);
