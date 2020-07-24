@@ -16,6 +16,7 @@ addons:
       - libflint-arb-dev
       - libicu-dev
       - g++-9
+      - libgccjit-9-dev
 
 before_install:
   - eval "CC=gcc-9 && CXX=g++-9"

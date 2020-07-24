@@ -22,7 +22,7 @@ For an example of lexing and parsing take a look at `testall/main.cpp`.
 ```bash
 sudo apt --no-install-suggests --no-install-recommends install \
   cmake-data cmake libgmp-dev libmpfr-dev libflint-dev libflint-arb-dev \
-  libicu-dev libgccjit10-dev g++
+  libicu-dev libgccjit-10-dev g++
 ```
 
 ### Building
@@ -113,6 +113,7 @@ main() =
 
 Thank you to all the developers behind the following open-source projects that made this possible:
 
+- [GCCJIT](https://gcc.gnu.org/wiki/JIT)
 - [ICU4C](http://site.icu-project.org/)
 - [GNU MP](https://gmplib.org/)
 - [GNU MPFR](https://www.mpfr.org/)
