@@ -51,7 +51,7 @@ static inline constexpr uint32_t unaryOpFlags(const LemniUnaryOp (&ops)[N]) noex
 	return flags;
 }
 
-static inline consteval auto zeroedTypeInfo() noexcept{
+static inline constexpr auto zeroedTypeInfo() noexcept{
 	LemniTypeInfo info;
 	info.binaryOpFlags = 0;
 	info.unaryOpFlags = 0;
@@ -122,19 +122,19 @@ static inline constexpr auto zeroPadTypeInfo(const LemniTypeInfo info) noexcept{
 	return ret;
 }
 
-static inline consteval auto topTypeInfo() noexcept{
+static inline constexpr auto topTypeInfo() noexcept{
 	auto ret = zeroedTypeInfo();
 	ret.typeClass = LEMNI_TYPECLASS_TOP;
 	return ret;
 }
 
-static inline consteval auto bottomTypeInfo() noexcept{
+static inline constexpr auto bottomTypeInfo() noexcept{
 	auto ret = zeroedTypeInfo();
 	ret.typeClass = LEMNI_TYPECLASS_BOTTOM;
 	return ret;
 }
 
-static inline consteval auto metaTypeInfo() noexcept{
+static inline constexpr auto metaTypeInfo() noexcept{
 	auto ret = zeroedTypeInfo();
 	ret.typeClass = LEMNI_TYPECLASS_META;
 	return ret;
@@ -176,11 +176,11 @@ static inline constexpr auto recordTypeInfo(
 	return ret;
 }
 
-static inline consteval auto unitTypeInfo() noexcept{
+static inline constexpr auto unitTypeInfo() noexcept{
 	return scalarTypeInfo(LEMNI_SCALAR_UNIT);
 }
 
-static inline consteval auto boolTypeInfo() noexcept{
+static inline constexpr auto boolTypeInfo() noexcept{
 	constexpr LemniBinaryOp binaryOps[] = {
 		LEMNI_BINARY_EQ, LEMNI_BINARY_NEQ
 	};
@@ -195,7 +195,7 @@ static inline consteval auto boolTypeInfo() noexcept{
 	return ret;
 }
 
-static inline consteval auto numberTypeInfo() noexcept{
+static inline constexpr auto numberTypeInfo() noexcept{
 	constexpr LemniBinaryOp binaryOps[] = {
 		LEMNI_BINARY_ADD, LEMNI_BINARY_SUB,
 		LEMNI_BINARY_MUL, LEMNI_BINARY_DIV,
@@ -244,7 +244,7 @@ static inline constexpr auto realTypeInfo(const uint32_t numBits = 0) noexcept{
 	return ret;
 }
 
-static inline consteval auto strTypeInfo() noexcept{
+static inline constexpr auto strTypeInfo() noexcept{
 	constexpr LemniBinaryOp binaryOps[] = {
 		LEMNI_BINARY_CONCAT
 	};
@@ -254,19 +254,19 @@ static inline consteval auto strTypeInfo() noexcept{
 	return ret;
 }
 
-static inline consteval auto strUtf8TypeInfo() noexcept{
+static inline constexpr auto strUtf8TypeInfo() noexcept{
 	auto ret = strTypeInfo();
 	ret.info.scalar.traits |= LEMNI_SCALAR_UTF8;
 	return ret;
 }
 
-static inline consteval auto strAsciiTypeInfo() noexcept{
+static inline constexpr auto strAsciiTypeInfo() noexcept{
 	auto ret = strTypeInfo();
 	ret.info.scalar.traits |= LEMNI_SCALAR_ASCII;
 	return ret;
 }
 
-static inline consteval auto callableTypeInfo() noexcept{
+static inline constexpr auto callableTypeInfo() noexcept{
 	auto ret = zeroedTypeInfo();
 	ret.typeClass = LEMNI_TYPECLASS_CALLABLE;
 	ret.info.callable.resultTypeIdx = UINT64_MAX;

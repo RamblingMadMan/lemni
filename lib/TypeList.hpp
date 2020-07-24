@@ -168,13 +168,13 @@ namespace lemni::typelist{
 	};
 
 	template<typename T, typename ... Ts>
-	consteval auto append(TypeList<Ts...>) -> TypeList<Ts..., T>{ return {}; }
+	constexpr auto append(TypeList<Ts...>) -> TypeList<Ts..., T>{ return {}; }
 
 	template<typename ... Lhs, typename ... Rhs>
-	consteval auto cat(TypeList<Lhs...>, TypeList<Rhs...>) -> TypeList<Lhs..., Rhs...>{ return {}; }
+	constexpr auto cat(TypeList<Lhs...>, TypeList<Rhs...>) -> TypeList<Lhs..., Rhs...>{ return {}; }
 
 	template<template<typename...> typename F, typename ... Ts, typename ... Args>
-	consteval auto apply(Partial<F, Ts...>, TypeList<Args...>) -> App<F, Ts..., Args...>{ return {}; }
+	constexpr auto apply(Partial<F, Ts...>, TypeList<Args...>) -> App<F, Ts..., Args...>{ return {}; }
 
 	template<template<typename...> typename F, typename ... Ts, typename ... Us, typename ... Args>
 	inline auto typeApply(Partial<F, Ts...>, TypeList<Us...>, LemniType type, Args &&... args){

@@ -20,6 +20,8 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 	add_compile_options("-fconcepts")
 endif()
 
+option(LEMNI_BUILD_EDITOR "Build the editor (Required SDL2)" OFF)
+
 set(LEMNI_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/include)
 
 set(
@@ -55,7 +57,6 @@ set(UTF8_SAMPLES OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(deps/utfcpp)
 add_subdirectory(deps/replxx)
-add_subdirectory(deps/imtui)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 add_subdirectory(deps/fmt)
@@ -71,9 +72,10 @@ add_subdirectory(deps/fmt)
 include_directories(${CMAKE_BINARY_DIR}/libjit/include)
 link_directories(${CMAKE_BINARY_DIR}/libjit/lib)
 
-include_directories(deps/layout)
-
 add_subdirectory(lib)
 add_subdirectory(repl)
-add_subdirectory(edit)
 add_subdirectory(testall)
+
+if(LEMNI_BUILD_EDITOR EQUAL ON)
+add_subdirectory(edit)
+endif(LEMNI_BUILD_EDITOR EQUAL ON)

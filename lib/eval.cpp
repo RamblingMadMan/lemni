@@ -24,7 +24,6 @@
 #include <memory>
 #include <new>
 #include <map>
-#include <span>
 #include <unordered_map>
 
 #include <dlfcn.h>
@@ -645,14 +644,14 @@ struct TypedFFICallerRetPartial;
 
 template<std::size_t ParamsRem, typename Ret, typename ... Params>
 struct TypedFFICallerRetPartial<std::integral_constant<std::size_t, ParamsRem>, Ret, Params...>{
-	static auto apply(std::span<LemniType> params){
-		return LemniTypeApp<std::true_type, TypedFFICallerRetPartial, std::integral_constant<std::size_t, ParamsRem-1>, Ret, Params...>::apply(params[0], params.subspan(1));
+	static auto apply(LemniType *const params){
+		return LemniTypeApp<std::true_type, TypedFFICallerRetPartial, std::integral_constant<std::size_t, ParamsRem-1>, Ret, Params...>::apply(params[0], params + 1);
 	}
 };
 
 template<typename Ret, typename ... Params>
 struct TypedFFICallerRetPartial<std::integral_constant<std::size_t, 0>, Ret, Params...>{
-	static auto apply(std::span<LemniType> params){
+	static auto apply(LemniType *const params){
 		(void)params;
 		return TypedFnCaller<Ret(Params...)>::apply();
 	}
@@ -663,7 +662,7 @@ struct TypedFFICallerRet;
 
 template<std::size_t NumParams, typename Ret>
 struct TypedFFICallerRet<std::integral_constant<std::size_t, NumParams>, Ret>{
-	static auto apply(std::span<LemniType> params){
+	static auto apply(LemniType *const params){
 		return TypedFFICallerRetPartial<std::integral_constant<std::size_t, NumParams>, Ret>::apply(params);
 	}
 };
@@ -671,7 +670,7 @@ struct TypedFFICallerRet<std::integral_constant<std::size_t, NumParams>, Ret>{
 template<std::size_t NumParams>
 struct TypedFFICaller{
 	static_assert(!(NumParams >= 0) || !(NumParams <= 0));
-	static auto apply(LemniType result, std::span<LemniType> params){
+	static auto apply(LemniType result, LemniType *const params){
 		return LemniTypeApp<std::false_type, Partial<TypedFFICallerRet, std::integral_constant<std::size_t, NumParams>>>::apply(result, params);
 	}
 };
@@ -682,7 +681,7 @@ struct FFICallerGet;
 template<std::size_t NumParams, typename Ret>
 struct FFICallerGet<std::integral_constant<std::size_t, NumParams>, Ret>{
 	template<typename T, std::size_t I, std::size_t ... Is, typename ... Ts>
-	static auto appendTypesImpl(std::span<LemniType> params, TypeList<Ts...>){
+	static auto appendTypesImpl(LemniType *const params, TypeList<Ts...>){
 		if constexpr(sizeof...(Is) == 0){
 			return TypedFnCaller<Ret(Ts..., T)>::apply();
 		}
@@ -692,7 +691,7 @@ struct FFICallerGet<std::integral_constant<std::size_t, NumParams>, Ret>{
 	}
 
 	template<std::size_t I, std::size_t ... Is, typename ... Ts>
-	static auto appendTypes(std::span<LemniType> params, TypeList<Ts...> tl){
+	static auto appendTypes(LemniType *const params, TypeList<Ts...> tl){
 		auto param = params[I];
 
 		//auto paramTypes = std::make_tuple(paramTypeList<I>(params), paramTypeList<Is>(params)...);
@@ -735,11 +734,11 @@ struct FFICallerGet<std::integral_constant<std::size_t, NumParams>, Ret>{
 	}
 
 	template<std::size_t ... Is>
-	static auto applyImpl(std::span<LemniType> params, std::index_sequence<Is...>){
+	static auto applyImpl(LemniType *const params, std::index_sequence<Is...>){
 		return appendTypes<Is...>(params, TypeList<>{});
 	}
 
-	static auto apply(std::span<LemniType> params){
+	static auto apply(LemniType *const params){
 		return applyImpl(params, std::make_index_sequence<NumParams>{});
 	}
 };
@@ -926,7 +925,7 @@ LemniEvalResult LemniTypedExtFnDeclExprT::eval(LemniEvalState state, LemniEvalBi
 			evalFn = LemniTypeApp<\
 				std::false_type,\
 				Partial<FFICallerGet, std::integral_constant<std::size_t, n>>\
-			>::apply(resultType, std::span<LemniType, n>(begin(paramTypes), n));\
+			>::apply(resultType, paramTypes.data());\
 			break;\
 		}
 

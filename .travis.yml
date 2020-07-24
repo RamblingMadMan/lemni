@@ -12,7 +12,7 @@ addons:
       - cmake
       - libgmp-dev
       - libmpfr-dev
-      - libarb-dev
+      - libflint-arb-dev
       - libicu-dev
       - g++-9
 

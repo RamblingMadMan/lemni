@@ -5,10 +5,6 @@
 #include <tuple>
 using namespace std::literals;
 
-#if __has_include(<ncurses.h>)
-#include <ncurses.h>
-#endif
-
 #include "fmt/core.h"
 #include "fmt/color.h"
 

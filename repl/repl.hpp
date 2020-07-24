@@ -7,13 +7,7 @@
 
 #include "fmt/core.h"
 
-#if __has_include(<ncurses.h>)
-#include <ncurses.h>
-#endif
-
 inline bool showTypes = true;
-
-
 
 inline void replHelp(){
 	std::vector<std::tuple<std::string, std::string, std::string>> cmds = {

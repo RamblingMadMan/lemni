@@ -7,9 +7,3 @@
 [submodule "deps/fmt"]
 	path = deps/fmt
 	url = https://github.com/fmtlib/fmt.git
-[submodule "deps/layout"]
-	path = deps/layout
-	url = https://github.com/randrew/layout.git
-[submodule "deps/imtui"]
-	path = deps/imtui
-	url = https://github.com/ggerganov/imtui.git

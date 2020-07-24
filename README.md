@@ -17,6 +17,14 @@ For an example of lexing and parsing take a look at `testall/main.cpp`.
 - GNU MPFR
 - ArbLib
 
+#### Ubuntu
+
+```bash
+sudo apt --no-install-suggests --no-install-recommends install \
+  cmake-data cmake libgmp-dev libmpfr-dev libflint-dev libflint-arb-dev \
+  libicu-dev libgccjit10-dev g++
+```
+
 ### Building
 
 Taking for granted a bash-like shell, from the source dir run the following:
@@ -112,5 +120,3 @@ Thank you to all the developers behind the following open-source projects that m
 - [UTF8-CPP](https://github.com/nemtrif/utfcpp)
 - [{fmt}](https://fmt.dev/)
 - [replxx](https://github.com/AmokHuginnsson/replxx)
-- [ImTui](https://github.com/ggerganov/imtui)
-- [Layout](https://github.com/randrew/layout)
