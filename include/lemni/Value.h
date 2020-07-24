@@ -179,9 +179,6 @@ namespace lemni{
 			explicit Value(T value) noexcept
 				: m_value(detail::ValueCreator<T>::create(value)){}
 
-			explicit Value(lemni::interop::Unit) noexcept
-				: Value(LemniUnit{}){}
-
 			Value(Value &&other) noexcept
 				: m_value(other.m_value)
 			{

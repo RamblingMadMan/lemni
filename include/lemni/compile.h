@@ -39,6 +39,7 @@ typedef struct LemniObjectT *LemniObject;
 
 typedef struct LemniCompileErrorT{
 	LemniStr msg;
+	LemniLocation loc;
 } LemniCompileError;
 
 typedef struct LemniCompileResultT{
@@ -51,10 +52,10 @@ typedef struct LemniCompileResultT{
 
 /**
  * @brief Create new compile state.
- * @note the returned handle must be destroyed with \ref LemniDestroyCompileState .
+ * @note the returned handle must be destroyed with \ref lemniDestroyCompileState .
  * @returns handle to newly created state
  */
-LemniCompileState lemniCreateCompileState();
+LemniCompileState lemniCreateCompileState(LemniCompileState parent);
 
 /**
  * @brief Destroy state previously created with \ref lemniCreateCompileState .
@@ -71,18 +72,35 @@ void lemniDestroyCompileState(LemniCompileState state);
  */
 LemniCompileResult lemniCompile(LemniCompileState state, LemniTypedExpr *const exprs, const size_t numExprs);
 
+/**
+ * @brief Destroy an object previously created by \ref lemniCompile .
+ * @param obj handle to the object to destroy
+ */
+void lemniDestroyObject(LemniObject obj);
+
+typedef void(*LemniFn)();
+
+/**
+ * @brief Retrieve a function from a compiled object.
+ * @param obj handle of the object to query
+ * @param mangledName mangled name of the function
+ * @returns the resolved function or ``NULL``
+ */
+LemniFn lemniObjectFunction(LemniObject obj, const LemniStr mangledName);
+
 #ifdef __cplusplus
 }
 #ifndef LEMNI_NO_CPP
 namespace lemni{
 	class CompileState{
 		public:
-			CompileState() noexcept
-				: m_state(lemniCreateCompileState()){}
+			explicit CompileState(LemniCompileState parent_ = nullptr) noexcept
+				: m_state(lemniCreateCompileState(parent_)){}
 
 			~CompileState(){ if(m_state) lemniDestroyCompileState(m_state); }
 
 			CompileState &operator=(CompileState &&other) noexcept{
+				if(m_state) lemniDestroyCompileState(m_state);
 				m_state = other.m_state;
 				other.m_state = nullptr;
 				return *this;

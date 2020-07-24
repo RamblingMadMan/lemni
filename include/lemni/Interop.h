@@ -35,9 +35,7 @@ extern "C" {
 #include <stdint.h>
 #include <math.h>
 
-typedef struct LemniUnitT{
-	char _pad; // guarantee sizeof(LemniUnit) >= 1
-} LemniUnit;
+typedef const struct LemniUnitT *const LemniUnit;
 
 typedef bool LemniBool;
 
@@ -250,19 +248,9 @@ namespace lemni::interop{
 	template<typename T>
 	using Promoted = typename detail::PromotedT<T>::Type;
 
-	struct Unit{
-		public:
-			Unit() noexcept = default;
-			Unit(const Unit&) noexcept = default;
+	using Unit = LemniUnit;
 
-			~Unit() = default;
-
-			Unit &operator=(const Unit&) noexcept = default;
-
-			operator LemniUnit() const noexcept{ return {}; }
-	};
-
-	inline constexpr Unit unit;
+	inline constexpr Unit unit = nullptr;
 
 	using Bool = LemniBool;
 

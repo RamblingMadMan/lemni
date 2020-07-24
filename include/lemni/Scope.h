@@ -35,6 +35,10 @@ extern "C" {
 typedef struct LemniScopeT *LemniScope;
 typedef const struct LemniScopeT *LemniScopeConst;
 
+typedef struct LemniScopeResultT{
+	bool hasError;
+} LemniScopeResult;
+
 LemniScope lemniCreateScope(LemniScopeConst parent);
 
 void lemniDestroyScope(LemniScope s);

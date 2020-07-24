@@ -24,7 +24,7 @@ include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(ARB DEFAULT_MSG
                                   ARB_LIBRARY ARB_INCLUDE_DIR)
 
-mark_as_advanced(ARB_INCLUDE_DIR ARB_LIBRARY) 
+mark_as_advanced(ARB_INCLUDE_DIR ARB_LIBRARY)
 
 if(ARB_FOUND)
 	set(ARB_LIBRARIES ${ARB_LIBRARY})

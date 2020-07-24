@@ -39,6 +39,8 @@ typedef const struct LemniExprT *LemniExpr;
 
 typedef const struct LemniApplicationExprT *LemniApplicationExpr;
 
+typedef const struct LemniAccessExprT *LemniAccessExpr;
+
 typedef const struct LemniUnaryOpExprT *LemniUnaryOpExpr;
 typedef const struct LemniBinaryOpExprT *LemniBinaryOpExpr;
 

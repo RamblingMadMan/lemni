@@ -114,6 +114,13 @@ uint32_t lemniBinaryOpPrecedence(LemniBinaryOp op);
 bool lemniBinaryOpIsLogic(LemniBinaryOp op);
 
 /**
+ * @brief Check if a binary operator is a comparison.
+ * @param op the operator to check
+ * @returns whether the operator is a comparison
+ */
+bool lemniBinaryOpIsComparison(LemniBinaryOp op);
+
+/**
  * @}
  */
 

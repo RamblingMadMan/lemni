@@ -47,7 +47,7 @@ namespace {
 }
 
 struct LemniExprT{
-	explicit LemniExprT(LemniLocation loc_): loc(loc_){}
+	explicit LemniExprT(LemniLocation loc_) noexcept: loc(loc_){}
 	virtual ~LemniExprT() = default;
 
 	virtual LemniTypecheckResult typecheck(LemniTypecheckState state, LemniScope scope) const noexcept = 0;
@@ -65,6 +65,15 @@ struct LemniApplicationExprT: LemniExprT{
 	std::vector<LemniExpr> args;
 };
 
+struct LemniAccessExprT: LemniExprT{
+	LemniAccessExprT(LemniLocation loc_, LemniExpr value_, LemniExpr access_) noexcept
+		: LemniExprT(loc_), value(value_), access(access_){}
+
+	LemniTypecheckResult typecheck(LemniTypecheckState state, LemniScope scope) const noexcept override;
+
+	LemniExpr value, access;
+};
+
 struct LemniLiteralExprT: LemniExprT{ using LemniExprT::LemniExprT; };
 
 struct LemniTupleExprT: LemniLiteralExprT{
@@ -77,6 +86,15 @@ struct LemniTupleExprT: LemniLiteralExprT{
 };
 
 struct LemniConstantExprT: LemniLiteralExprT{ using LemniLiteralExprT::LemniLiteralExprT; };
+
+struct LemniMacroExprT: LemniConstantExprT{
+	LemniMacroExprT(LemniLocation loc_, std::vector<LemniExpr> exprs_)
+		: LemniConstantExprT(loc_), exprs(std::move(exprs_)){}
+
+	LemniTypecheckResult typecheck(LemniTypecheckState state, LemniScope scope) const noexcept override;
+
+	std::vector<LemniExpr> exprs;
+};
 
 struct LemniUnitExprT: LemniConstantExprT{
 	using LemniConstantExprT::LemniConstantExprT;

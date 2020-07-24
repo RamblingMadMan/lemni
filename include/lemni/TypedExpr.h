@@ -49,8 +49,9 @@ LEMNI_OPAQUE_CONST_T(LemniTypedLambdaExpr);
 
 LEMNI_OPAQUE_CONST_T(LemniTypedConstantExpr);
 
-LEMNI_OPAQUE_CONST_T(LemniTypedImportExpr);
 LEMNI_OPAQUE_CONST_T(LemniTypedExportExpr);
+
+LEMNI_OPAQUE_CONST_T(LemniTypedModuleExpr);
 
 LEMNI_OPAQUE_CONST_T(LemniTypedUnitExpr);
 

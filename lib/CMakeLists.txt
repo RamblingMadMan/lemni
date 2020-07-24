@@ -27,6 +27,7 @@ set(
 	Value.cpp
 	Module.cpp
 	TypeList.hpp
+	mangle.cpp
 	eval.cpp
 	compile.cpp
 )

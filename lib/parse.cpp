@@ -557,7 +557,41 @@ namespace {
 		return std::make_pair(makeResult(list), it);
 	}
 
+	std::pair<LemniParseResult, const LemniToken*> parseAccess(LemniParseState state, LemniLocation loc, const LemniToken *it, const LemniToken *const end, LemniExpr lhs){
+		if(it == end){
+			return std::make_pair(makeError(state, loc, "unexpected end of tokens in member access"), it);
+		}
+
+		const bool hasSpace = it->type == LEMNI_TOKEN_SPACE;
+		if(hasSpace) ++it;
+
+		while((it != end) && (it->type == LEMNI_TOKEN_SPACE)){
+			++it;
+		}
+
+		if(it == end){
+			return std::make_pair(makeError(state, loc, "unexpected end of tokens in member access"), it);
+		}
+
+		if(it->type == LEMNI_TOKEN_ID){
+			auto refRhs = createExpr<LemniRefExprT>(state, it->loc, lemni::toStdStr(it->text));
+			auto accessExpr = createExpr<LemniAccessExprT>(state, loc, lhs, refRhs);
+			return parseLeading(state, loc, ++it, end, accessExpr);
+		}
+		else{
+			return std::make_pair(makeError(state, it->loc, "only access by constant identifiers currently implemented"), it);
+		}
+	}
+
 	std::pair<LemniParseResult, const LemniToken*> parseLeading(LemniParseState state, LemniLocation loc, const LemniToken *it, const LemniToken *const end, LemniExpr value){
+		if(it == end){
+			setRemainder(state, it, end);
+			return std::make_pair(makeResult(value), it);
+		}
+
+		const bool hasSpace = it->type == LEMNI_TOKEN_SPACE;
+		if(hasSpace) ++it;
+
 		while((it != end) && (it->type == LEMNI_TOKEN_SPACE)){
 			++it;
 		}
@@ -574,6 +608,10 @@ namespace {
 		else if(it->type == LEMNI_TOKEN_BRACKET_CLOSE){
 			setRemainder(state, it+1, end);
 			return std::make_pair(makeResult(value), it);
+		}
+		else if(!hasSpace && (it->text == LEMNICSTR("."))){
+			// member access
+			return parseAccess(state, loc, ++it, end, value);
 		}
 		else if(it->text == LEMNICSTR(",")){
 			return parseCommaList(state, loc, ++it, end, value);

@@ -23,13 +23,13 @@ LemniType lemniTypedExprType(LemniTypedExpr expr){ return expr->type(); }
 LemniStr lemniTypedLValueExprId(LemniTypedLValueExpr lvalue){ return lemni::fromStdStrView(lvalue->id()); }
 
 ffi_type *lemniTypeToFFI(LemniType type){
-	if(auto unit = lemniTypeAsUnit(type)){
+	if(lemniTypeAsUnit(type) || lemniTypeAsBottom(type)){
 		return &ffi_type_void;
 	}
-	else if(auto bool_ = lemniTypeAsBool(type)){
+	else if(lemniTypeAsBool(type)){
 		return &ffi_type_uint8;
 	}
-	else if(auto nat = lemniTypeAsNat(type)){
+	else if(lemniTypeAsNat(type)){
 		switch(lemniTypeNumBits(type)){
 			case 16: return &ffi_type_uint16;
 			case 32: return &ffi_type_uint32;
@@ -37,7 +37,7 @@ ffi_type *lemniTypeToFFI(LemniType type){
 			default: return nullptr;
 		}
 	}
-	else if(auto int_ = lemniTypeAsInt(type)){
+	else if(lemniTypeAsInt(type)){
 		switch(lemniTypeNumBits(type)){
 			case 16: return &ffi_type_sint16;
 			case 32: return &ffi_type_sint32;
@@ -45,7 +45,7 @@ ffi_type *lemniTypeToFFI(LemniType type){
 			default: return nullptr;
 		}
 	}
-	else if(auto real = lemniTypeAsReal(type)){
+	else if(lemniTypeAsReal(type)){
 		switch(lemniTypeNumBits(type)){
 			case 32: return &ffi_type_float;
 			case 64: return &ffi_type_double;

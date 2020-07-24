@@ -19,7 +19,6 @@
 #ifndef LEMNI_MACROS_H
 #define LEMNI_MACROS_H 1
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,6 +28,16 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
+
+#if defined(__cplusplus) && !defined(LEMNI_NO_CPP)
+#define LEMNI_CPP
+#endif
+
+
+#define LEMNI_EXPAND0(x) x
+#define LEMNI_EXPAND1(...) LEMNI_EXPAND0(__VA_ARGS__)
+#define LEMNI_EXPAND(...) LEMNI_EXPAND1(__VA_ARGS__)
 
 
 #define LEMNI_JOIN_IMPL(a, b) a##b
@@ -182,6 +191,5 @@ typedef enum name##T{\
 	LEMNI_BITFLAG_ENUM_T_CASES0(prefix, __VA_ARGS__)\
 	prefix##_COUNT = __COUNTER__ - prefix##_BASE\
 } name
-
 
 #endif // !LEMNI_MACROS_H

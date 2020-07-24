@@ -36,6 +36,7 @@ using namespace std::string_literals;
 using namespace std::string_view_literals;
 
 struct LemniTypecheckStateT{
+	LemniModuleMap mods;
 	LemniTypeSet types;
 	LemniScope globalScope;
 
@@ -46,10 +47,11 @@ struct LemniTypecheckStateT{
 	std::map<LemniLValueExpr, LemniTypedLiteralExpr> literalBindings;
 };
 
-LemniTypecheckState lemniCreateTypecheckState(LemniTypeSet types){
+LemniTypecheckState lemniCreateTypecheckState(LemniModuleMap mods){
 	auto mem = std::malloc(sizeof(LemniTypecheckStateT));
 	auto p = new(mem) LemniTypecheckStateT;
-	p->types = types;
+	p->mods = mods;
+	p->types = lemniModuleMapTypes(mods);
 	p->globalScope = lemniCreateScope(nullptr);
 	return p;
 }
@@ -58,6 +60,14 @@ void lemniDestroyTypecheckState(LemniTypecheckState state){
 	lemniDestroyScope(state->globalScope);
 	std::destroy_at(state);
 	std::free(state);
+}
+
+LemniModuleMap lemniTypecheckStateModuleMap(LemniTypecheckState state){
+	return state->mods;
+}
+
+LemniScope lemniTypecheckStateScope(LemniTypecheckStateConst state){
+	return state->globalScope;
 }
 
 namespace {
@@ -88,6 +98,20 @@ namespace {
 		state->typedExprs.emplace_back(std::move(ptr));
 		return ret;
 	}
+}
+
+LemniTypedModuleExpr lemniCreateTypedModule(LemniTypecheckState state, const LemniStr alias, LemniModule module){
+	auto moduleType = lemniTypeSetGetModule(state->types);
+	auto moduleExpr = createTypedExpr<LemniTypedModuleExprT>(state, moduleType, module);
+
+	auto name = alias;
+
+	if((alias.len == 0) || !alias.ptr) name = lemniModuleId(module);
+
+	auto aliasExpr = createTypedExpr<LemniTypedBindingExprT>(state, lemni::toStdStr(name), moduleExpr);
+	lemniScopeSet(state->globalScope, aliasExpr);
+
+	return moduleExpr;
 }
 
 LemniTypedExtFnDeclExpr lemniCreateTypedExtFn(
@@ -127,33 +151,33 @@ LemniTypecheckResult LemniApplicationExprT::typecheck(LemniTypecheckState state,
 			return makeError(state, args[0]->loc, "import expects a static string argument");
 		}
 
-		auto modRes = lemniLoadModule(state->types, lemni::fromStdStrView(strExpr->str()));
+		auto modRes = lemniLoadModule(state->mods, lemni::fromStdStrView(strExpr->str()));
 		switch(modRes.resType){
-			case LEMNI_MODULE_RESULT_LEX:{
+			case LEMNI_MODULE_LEX_ERROR:{
 				return makeError(
 					state, loc,
 					fmt::format(
-						"lexing error importing module: @{}.{}: {}",
+						"lexing error importing module[{}.{}]: {}",
 						modRes.lexErr.loc.line, modRes.lexErr.loc.col,
 						lemni::toStdStrView(modRes.lexErr.msg)
 					)
 				);
 			}
-			case LEMNI_MODULE_RESULT_PARSE:{
+			case LEMNI_MODULE_PARSE_ERROR:{
 				return makeError(
 					state, loc,
 					fmt::format(
-						"parsing error importing module: @{}.{}: {}",
+						"parsing error importing module[{}.{}]: {}",
 						modRes.parseErr.loc.line, modRes.parseErr.loc.col,
 						lemni::toStdStrView(modRes.parseErr.msg)
 					)
 				);
 			}
-			case LEMNI_MODULE_RESULT_TYPECHECK:{
+			case LEMNI_MODULE_TYPECHECK_ERROR:{
 				return makeError(
 					state, loc,
 					fmt::format(
-						"typechecking error importing module: @{}.{}: {}",
+						"typechecking error importing module[{}.{}]: {}",
 						modRes.typeErr.loc.line, modRes.typeErr.loc.col,
 						lemni::toStdStrView(modRes.typeErr.msg)
 					)
@@ -164,7 +188,7 @@ LemniTypecheckResult LemniApplicationExprT::typecheck(LemniTypecheckState state,
 
 		auto moduleType = lemniTypeSetGetModule(state->types);
 
-		auto importExpr = createTypedExpr<LemniTypedImportExprT>(state, moduleType, modRes.module);
+		auto importExpr = createTypedExpr<LemniTypedModuleExprT>(state, moduleType, modRes.module);
 
 		return makeResult(importExpr);
 	}
@@ -198,7 +222,7 @@ LemniTypecheckResult LemniApplicationExprT::typecheck(LemniTypecheckState state,
 			if(!argType->isCastable(paramType)){
 				auto errStr = fmt::format(
 					"can not cast argument {} from `{}` to `{}`",
-					i + 1, argType->str, paramType->str
+					i + 1, argType->str(), paramType->str()
 				);
 
 				return makeError(state, loc, std::move(errStr));
@@ -227,6 +251,49 @@ LemniTypecheckResult LemniApplicationExprT::typecheck(LemniTypecheckState state,
 	}
 	else{
 		return makeError(state, loc, "application on non-function expression");
+	}
+}
+
+LemniTypecheckResult LemniAccessExprT::typecheck(LemniTypecheckState state, LemniScope scope) const noexcept{
+	auto valueRes = value->typecheck(state, scope);
+	if(valueRes.hasError) return valueRes;
+
+	LemniModule module = nullptr;
+
+	auto expr = valueRes.expr;
+
+	auto ref = dynamic_cast<const LemniTypedRefExprT*>(expr);
+	if(ref) expr = ref->refed;
+
+	auto bindingRef = dynamic_cast<LemniTypedBindingExpr>(expr);
+	if(!bindingRef){
+		return makeError(state, loc, "only module member access currently implemented");
+	}
+
+	if(auto valueMod = dynamic_cast<LemniTypedModuleExpr>(bindingRef->value)){
+		module = valueMod->module;
+	}
+	else{
+		return makeError(state, loc, "only module member access currently implemented");
+	}
+
+	if(auto rhsRef = dynamic_cast<LemniRefExpr>(access)){
+		auto modState = lemniModuleTypecheckState(module);
+		auto modScope = lemniTypecheckStateScope(modState);
+		auto resolved = lemniScopeFind(modScope, lemni::fromStdStrView(rhsRef->id));
+		if(!resolved)
+			return makeError(
+				state, loc,
+				fmt::format(
+					"could not resolve '{}' in module '{}'",
+					rhsRef->id, lemni::toStdStrView(lemniModuleId(module))
+				)
+			);
+
+		return makeResult(createTypedExpr<LemniTypedRefExprT>(state, resolved));
+	}
+	else{
+		return makeError(state, loc, "only member access by static identifier currently implemented");
 	}
 }
 

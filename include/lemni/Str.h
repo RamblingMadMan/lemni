@@ -40,6 +40,8 @@ typedef struct LemniStrT{
 	uintptr_t len;
 } LemniStr;
 
+#define LEMNINULLSTR ((LemniStr){ .ptr = nullptr, .len = 0 })
+
 /**
  * @brief Create a ``LemniStr`` from a string literal.
  */

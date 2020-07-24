@@ -24,6 +24,7 @@
 #include "lex.h"
 #include "parse.h"
 #include "typecheck.h"
+#include "compile.h"
 
 /**
  * @defgroup Modules Module related types and functions
@@ -40,6 +41,7 @@ extern "C" {
  * @brief Opaque type representing a module.
  */
 LEMNI_OPAQUE_T(LemniModule);
+LEMNI_OPAQUE_T(LemniModuleMap);
 
 /**
  * @brief Opaque type representing an executable environment.
@@ -50,15 +52,29 @@ LEMNI_OPAQUE_T(LemniRuntime);
  * @brief Create a module.
  * @note the returned module must be destroyed with \ref lemniDestroyModule .
  * @param types type set to use for typechecking
+ * @param id identifier of the module
  * @returns handle to the newly created module
  */
-LemniModule lemniCreateModule(LemniTypeSet types);
+LemniModule lemniCreateModule(LemniModuleMap mods, const LemniStr id);
+
+/**
+ * @brief Destroy a module previously created with \ref lemniCreateModule .
+ * @param mod handle of the module to destroy
+ */
+void lemniDestroyModule(LemniModule mod);
+
+LemniStr lemniModuleId(LemniModuleConst mod);
+
+LemniTypeSet lemniModuleTypeSet(LemniModuleConst mod);
+
+LemniTypecheckStateConst lemniModuleTypecheckState(LemniModuleConst mod);
 
 typedef enum LemniModuleResultTypeT{
 	LEMNI_MODULE_RESULT_MODULE = 0,
-	LEMNI_MODULE_RESULT_LEX,
-	LEMNI_MODULE_RESULT_PARSE,
-	LEMNI_MODULE_RESULT_TYPECHECK,
+	LEMNI_MODULE_LEX_ERROR,
+	LEMNI_MODULE_PARSE_ERROR,
+	LEMNI_MODULE_TYPECHECK_ERROR,
+	LEMNI_MODULE_COMPILE_ERROR,
 	LEMNI_MODULE_RESULT_COUNT
 } LemniModuleResultType;
 
@@ -69,34 +85,17 @@ typedef struct LemniModuleResultT{
 		LemniLexError lexErr;
 		LemniParseError parseErr;
 		LemniTypecheckError typeErr;
+		LemniCompileError compErr;
 	};
 } LemniModuleResult;
 
-/**
- * @brief Load a module from lemni source.
- * @param pathStr path to the source file
- * @returns handle to the newly create module
- */
-LemniModuleResult lemniLoadModule(LemniTypeSet types, LemniStr pathStr);
-
-typedef void(*LemniModuleTypecheckOkCB)(void *data, LemniTypedExpr *const exprs, const size_t numExprs);
-typedef void(*LemniModuleTypecheckErrCB)(void *data, LemniTypecheckError err);
-
-typedef struct LemniModuleTypecheckCBsT{
-	void *data;
-	LemniModuleTypecheckOkCB ok;
-	LemniModuleTypecheckErrCB err;
-} LemniModuleTypecheckCBs;
-
-void lemniModuleTypecheck(LemniModule mod, const LemniExpr *const exprs, const size_t numExprs, LemniModuleTypecheckCBs cbs);
-
-/**
- * @brief Destroy a module previously created with \ref lemniCreateModule .
- * @param mod handle of the module to destroy
- */
-void lemniDestroyModule(LemniModule mod);
-
-LemniTypeSet lemniModuleTypeSet(LemniModule mod);
+LemniTypedExtFnDeclExpr lemniModuleCreateExtFn(
+	LemniModule mod, const LemniStr name, void *const ptr,
+	const LemniType resultType,
+	const LemniNat64 numParams,
+	const LemniType *const paramTypes,
+	const LemniStr *const paramNames
+);
 
 size_t lemniModuleNumExprs(LemniModule mod);
 LemniTypedExpr *lemniModuleExprs(LemniModule mod);
@@ -105,71 +104,49 @@ LemniTypedExpr *lemniModuleExprs(LemniModule mod);
  * @brief JIT compile a module.
  * @note the returned runtime must be destroyed with \ref lemniDestroyRuntime .
  * @param mod handle of the module to compile
- * @returns handle to a newly compiled runtime environment
+ * @returns result of the compilation \see lemniCompile
  */
-LemniRuntime lemniModuleJITCompile(LemniModule mod);
+LemniCompileResult lemniModuleJITCompile(LemniModule mod);
 
 /**
- * @brief Destroy a runtime previously created with \ref lemniModuleJITCompile .
- * @param rt handle of the runtime to destroy
+ * @brief Create a new module map.
+ * @param types typeset to use for loaded modules
+ * @returns newly created module map
  */
-void lemniDestroyRuntime(LemniRuntime rt);
-
-typedef const struct LemniBoundParamsT *LemniBoundParams;
-
-struct LemniRtValueT{
-	LemniType type;
-	union {
-		uint64_t data;
-		void *ptr;
-	};
-};
-
-typedef struct LemniRtValueT LemniRtValue[1];
+LemniModuleMap lemniCreateModuleMap(LemniTypeSet types);
 
 /**
- * @brief Type representing an executable lemni function.
- * To call the function, first an environment must be created with createEnv.
- * The created environment can be re-used for successive function calls, but is not thread-safe.
- * Before discarding the function the environment must be freed with destroyEnv.
+ * @brief Destroy a module map previously created with \ref lemniCreateModuleMap .
+ * @param mods module map to destroy
  */
-typedef struct LemniRtFnT{
-	void*(*createEnv)(LemniRuntimeConst rt);
-	void(*destroyEnv)(void *env);
-	LemniBoundParams(*bindParams)(void *env, ...);
-	void(*fn)(void *env, LemniRtValue res, LemniBoundParams args);
-} LemniRtFn;
+void lemniDestroyModuleMap(LemniModuleMap mods);
 
 /**
- * @brief Destroy a set of parameters bound previously by \ref LemniRtFn::bindParams .
- * @param bound bound parameters
+ * @brief Retrieve the typeset used for a module map.
+ * @param mods module map to query
+ * @returns resultant typeset
  */
-void lemniDestroyBoundParams(LemniBoundParams bound);
+LemniTypeSet lemniModuleMapTypes(LemniModuleMap mods);
 
 /**
- * @brief Retrieve a function pointer from \p rt .
- * \p name is relative to the m
- * @param rt handle of the runtime to retrieve the function from
- * @param name name of the function to retrieve
- * @returns pointer to the function of ``NULL`` if no function was found
+ * @brief Load a module from lemni source.
+ * @param pathStr path to the source file
+ * @returns handle to the newly create module
  */
-LemniRtFn lemniRuntimeFn(LemniRuntimeConst rt, LemniStr name);
+LemniModuleResult lemniLoadModule(LemniModuleMap mods, const LemniStr id);
+
+void lemniAliasModule(LemniModuleMap mods, const LemniStr id, const LemniStr alias);
+
+void lemniRegisterModule(LemniModuleMap mods, LemniModule module);
 
 #ifdef __cplusplus
 }
 
 namespace lemni{
-	class RuntimeFn{
-	};
-
-	class Runtime{
-		public:
-	};
-
 	class Module{
 		public:
-			explicit Module(LemniTypeSet types) noexcept
-				: m_handle(lemniCreateModule(types)){}
+			Module(LemniModuleMap mods, const LemniStr id) noexcept
+				: m_handle(lemniCreateModule(mods, id)){}
 
 			Module(Module &&other) noexcept
 				: m_handle(other.m_handle)
@@ -184,6 +161,9 @@ namespace lemni{
 			static Module from(LemniModule handle) noexcept{
 				return Module(handle);
 			}
+
+			operator LemniModule() noexcept{ return m_handle; }
+			operator LemniModuleConst() const noexcept{ return m_handle; }
 
 			Module &operator=(Module &&other) noexcept{
 				if(m_handle) lemniDestroyModule(m_handle);
@@ -208,6 +188,52 @@ namespace lemni{
 				: m_handle(handle_){}
 
 			LemniModule m_handle;
+	};
+
+	class ModuleMap{
+		public:
+			explicit ModuleMap(LemniTypeSet types) noexcept
+				: m_handle(lemniCreateModuleMap(types)){}
+
+			ModuleMap(ModuleMap &&other) noexcept
+				: m_handle(other.m_handle)
+			{
+				other.m_handle = nullptr;
+			}
+
+			~ModuleMap(){
+				if(m_handle) lemniDestroyModuleMap(m_handle);
+			}
+
+			static ModuleMap from(LemniModuleMap handle_) noexcept{
+				return ModuleMap(handle_);
+			}
+
+			operator LemniModuleMap() noexcept{ return m_handle; }
+			operator LemniModuleMapConst() const noexcept{ return m_handle; }
+
+			ModuleMap &operator=(ModuleMap &&other) noexcept{
+				if(m_handle) lemniDestroyModuleMap(m_handle);
+
+				m_handle = other.m_handle;
+				other.m_handle = nullptr;
+
+				return *this;
+			}
+
+			void register_(LemniModule module) noexcept{
+				lemniRegisterModule(m_handle, module);
+			}
+
+			void alias(const std::string_view id, const std::string_view alias) noexcept{
+				lemniAliasModule(m_handle, lemni::fromStdStrView(id), lemni::fromStdStrView(alias));
+			}
+
+		private:
+			explicit ModuleMap(LemniModuleMap handle_) noexcept
+				: m_handle(handle_){}
+
+			LemniModuleMap m_handle;
 	};
 }
 #endif

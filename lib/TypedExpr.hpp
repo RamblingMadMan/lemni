@@ -22,6 +22,7 @@
 #include <map>
 
 #include <ffi.h>
+#include <libgccjit.h>
 
 #include "fmt/core.h"
 
@@ -35,7 +36,6 @@
 
 #include "Type.hpp"
 
-LEMNI_OPAQUE_T(LemniJitExpr);
 LEMNI_OPAQUE_T(LemniEvalBindings);
 
 typedef struct LemniJitErrorT{
@@ -45,7 +45,7 @@ typedef struct LemniJitErrorT{
 typedef struct LemniJitResultT{
 	bool hasError;
 	union {
-		LemniJitExpr expr;
+		gcc_jit_rvalue *rvalue;
 		LemniJitError error;
 	};
 } LemniJitResult;
@@ -89,10 +89,12 @@ struct LemniTypedExprT{
 
 	virtual LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept = 0;
 
-	virtual LemniJitResult jit(LemniCompileState state) const noexcept{
+	virtual LemniJitResult compile(LemniCompileState state, gcc_jit_block *block = nullptr) const noexcept{
+		(void)state;
+		(void)block;
 		LemniJitResult res;
 		res.hasError = true;
-		res.error.msg = LEMNICSTR("jit compilation currently unimplemented");
+		res.error.msg = LEMNICSTR("compilation unimplemented for expression");
 		return res;
 	}
 };
@@ -100,6 +102,19 @@ struct LemniTypedExprT{
 struct LemniTypedLiteralExprT: LemniTypedExprT{};
 
 struct LemniTypedConstantExprT: LemniTypedLiteralExprT{};
+
+struct LemniTypedModuleExprT: LemniTypedConstantExprT{
+	LemniTypedModuleExprT(LemniModuleType moduleType_, LemniModule module_) noexcept
+		: moduleType(moduleType_), module(module_)
+	{}
+
+	LemniModuleType type() const noexcept override{ return moduleType; }
+
+	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniModuleType moduleType;
+	LemniModule module;
+};
 
 struct LemniTypedTypeExprT: LemniTypedConstantExprT{
 	LemniTypedTypeExprT(LemniMetaType metaType_, LemniType value_) noexcept
@@ -133,6 +148,8 @@ struct LemniTypedBinaryOpExprT: LemniTypedExprT{
 	LemniType type() const noexcept override{ return resultType; }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
 
 	LemniType resultType;
 	LemniBinaryOp op;
@@ -197,6 +214,8 @@ struct LemniTypedBindingExprT: LemniTypedNamedExprT{
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
+
 	LemniTypedExpr value;
 };
 
@@ -207,6 +226,8 @@ struct LemniTypedApplicationExprT: LemniTypedExprT{
 	LemniType type() const noexcept override{ return resultType; }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
 
 	LemniType resultType;
 	LemniTypedExpr fn;
@@ -231,6 +252,8 @@ struct LemniTypedProductExprT: LemniTypedLiteralExprT{
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
+
 	LemniProductType productType;
 	std::vector<LemniTypedExpr> elems;
 };
@@ -243,6 +266,8 @@ struct LemniTypedBranchExprT: LemniTypedExprT{
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
+
 	LemniType resultType;
 	LemniTypedExpr cond, true_, false_;
 };
@@ -254,6 +279,8 @@ struct LemniTypedReturnExprT: LemniTypedExprT{
 	LemniType type() const noexcept override{ return value->type(); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
 
 	LemniTypedExpr value;
 };
@@ -283,18 +310,6 @@ struct LemniTypedLambdaExprT: LemniTypedLiteralExprT{
 	LemniTypedExpr body;
 };
 
-struct LemniTypedImportExprT: LemniTypedConstantExprT{
-	LemniTypedImportExprT(LemniType importedType_, LemniModule module_) noexcept
-		: importedType(importedType_), module(module_){}
-
-	LemniType type() const noexcept override{ return importedType; }
-
-	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
-
-	LemniType importedType;
-	LemniModule module;
-};
-
 struct LemniTypedExportExprT: LemniTypedConstantExprT{
 	LemniTypedExportExprT(LemniTypedConstantExpr value_) noexcept
 		: value(value_){}
@@ -314,6 +329,8 @@ struct LemniTypedUnitExprT: LemniTypedConstantExprT{
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
+
 	LemniUnitType unitType;
 };
 
@@ -324,6 +341,8 @@ struct LemniTypedBoolExprT: LemniTypedConstantExprT{
 	LemniBoolType type() const noexcept override{ return boolType; }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
 
 	LemniBoolType boolType;
 	const bool value;
@@ -355,6 +374,8 @@ struct LemniTypedNat16ExprT: LemniTypedNatExprT{
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
+
 	LemniNat16 value;
 };
 
@@ -364,6 +385,8 @@ struct LemniTypedNat32ExprT: LemniTypedNatExprT{
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
+
 	LemniNat32 value;
 };
 
@@ -372,6 +395,8 @@ struct LemniTypedNat64ExprT: LemniTypedNatExprT{
 		: LemniTypedNatExprT(nat64Type_), value(value_){}
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
 
 	LemniNat64 value;
 };
@@ -400,6 +425,8 @@ struct LemniTypedInt16ExprT: LemniTypedIntExprT{
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
+
 	LemniInt16 value;
 };
 
@@ -409,6 +436,8 @@ struct LemniTypedInt32ExprT: LemniTypedIntExprT{
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
+
 	LemniInt32 value;
 };
 
@@ -417,6 +446,8 @@ struct LemniTypedInt64ExprT: LemniTypedIntExprT{
 		: LemniTypedIntExprT(intType_), value(std::move(value_)){}
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
 
 	LemniInt64 value;
 };
@@ -490,6 +521,8 @@ struct LemniTypedReal32ExprT: LemniTypedRealExprT{
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block = nullptr) const noexcept override;
+
 	LemniReal32 value;
 };
 
@@ -498,6 +531,8 @@ struct LemniTypedReal64ExprT: LemniTypedRealExprT{
 		: LemniTypedRealExprT(real64Type_), value(value_){}
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, gcc_jit_block *block) const noexcept override;
 
 	LemniReal64 value;
 };

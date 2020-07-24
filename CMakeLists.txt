@@ -42,6 +42,7 @@ set(
 	${LEMNI_INCLUDE_DIR}/lemni/typecheck.h
 	${LEMNI_INCLUDE_DIR}/lemni/Module.h
 	${LEMNI_INCLUDE_DIR}/lemni/Value.h
+	${LEMNI_INCLUDE_DIR}/lemni/mangle.h
 	${LEMNI_INCLUDE_DIR}/lemni/eval.h
 	${LEMNI_INCLUDE_DIR}/lemni/compile.h
 )

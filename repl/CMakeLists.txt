@@ -1,5 +1,6 @@
 set(
 	LEMNI_REPL_SOURCES
+	repl.hpp
 	main.cpp
 )
 

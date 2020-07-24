@@ -49,8 +49,9 @@ LemniTypedLValueExpr lemniScopeFind(LemniScopeConst s, LemniStr name){
 	else if(s->parent){
 		return lemniScopeFind(s->parent, name);
 	}
-
-	return nullptr;
+	else{
+		return nullptr;
+	}
 }
 
 bool lemniScopeSet(LemniScope s, LemniTypedLValueExpr expr){

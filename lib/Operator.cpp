@@ -118,3 +118,18 @@ bool lemniBinaryOpIsLogic(LemniBinaryOp op){
 			return false;
 	}
 }
+
+bool lemniBinaryOpIsComparison(LemniBinaryOp op){
+	switch(op){
+		case LEMNI_BINARY_LT:
+		case LEMNI_BINARY_GT:
+		case LEMNI_BINARY_LTEQ:
+		case LEMNI_BINARY_GTEQ:
+		case LEMNI_BINARY_EQ:
+		case LEMNI_BINARY_NEQ:
+			return true;
+
+		default:
+			return false;
+	}
+}

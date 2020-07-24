@@ -21,6 +21,7 @@
 
 #include "Expr.h"
 #include "TypedExpr.h"
+#include "Scope.h"
 
 /**
  * @defgroup Typechecking Typechecking related types and functions.
@@ -35,6 +36,10 @@ extern "C" {
 typedef struct LemniTypecheckStateT *LemniTypecheckState;
 
 typedef const struct LemniTypecheckStateT *LemniTypecheckStateConst;
+
+typedef struct LemniModuleT *LemniModule;
+
+typedef struct LemniModuleMapT *LemniModuleMap;
 
 //! Type representing a typechecking error
 typedef struct {
@@ -55,12 +60,11 @@ typedef struct {
  * @brief Create new state for typechecking functions.
  * @note the returned state must be destroyed with \ref lemniDestroyTypecheckState .
  * @warning the pointer \p exprs must stay valid for the life of the returned state.
- * @param types typeset to get types from
- * @param exprs pointer to array of expressions to typecheck
- * @param numExprs number of expressions in \p exprs array
+ * @param mods module map to retrieve modules and types from
+ * @param module module that the typecheck state belongs to
  * @returns newly created typechecking state
  */
-LemniTypecheckState lemniCreateTypecheckState(LemniTypeSet types);
+LemniTypecheckState lemniCreateTypecheckState(LemniModuleMap mods);
 
 /**
  * @brief Destroy state previously created with \ref lemniCreateTypecheckState .
@@ -69,6 +73,30 @@ LemniTypecheckState lemniCreateTypecheckState(LemniTypeSet types);
  */
 void lemniDestroyTypecheckState(LemniTypecheckState state);
 
+LemniModuleMap lemniTypecheckStateModuleMap(LemniTypecheckState state);
+
+LemniScope lemniTypecheckStateScope(LemniTypecheckStateConst state);
+
+/**
+ * @brief Create a module expression for typechecking to resolve from.
+ * @param state typechecking state to modify
+ * @param name alias for the new module
+ * @param id identifier for loading the module (relative/absolute path or registered name)
+ * @returns newly created module expression
+ */
+LemniTypedModuleExpr lemniCreateTypedModule(LemniTypecheckState state, const LemniStr alias, LemniModule module);
+
+/**
+ * @brief Create an external function expression for typechecking to resolve.
+ * @param state typechecking state to modify
+ * @param name valid lemni function identifier for the function
+ * @param ptr pointer to the function
+ * @param resultType result type of a function call
+ * @param numParams number of function parameters
+ * @param paramTypes pointer to array of \p numParams \ref LemniType s
+ * @param paramNames pointer to array of \p numParams \ref LemniStr s
+ * @returns newly created external function expression
+ */
 LemniTypedExtFnDeclExpr lemniCreateTypedExtFn(
 	LemniTypecheckState state, const LemniStr name, void *const ptr,
 	const LemniType resultType,
@@ -79,7 +107,7 @@ LemniTypedExtFnDeclExpr lemniCreateTypedExtFn(
 
 /**
  * @brief Typecheck a single expression from \p state .
- * @param state the state to modify
+ * @param state typechecking state to modify
  * @returns the result of the typechecking operation
  */
 LemniTypecheckResult lemniTypecheck(LemniTypecheckState state, LemniExpr expr);
@@ -116,8 +144,8 @@ namespace lemni{
 
 	class TypecheckState{
 		public:
-			explicit TypecheckState(LemniTypeSet types)
-				: m_state(lemniCreateTypecheckState(types)){}
+			explicit TypecheckState(LemniModuleMap mods)
+				: m_state(lemniCreateTypecheckState(mods)){}
 
 			TypecheckState(TypecheckState &&other) noexcept
 				: m_state(other.m_state)
@@ -172,8 +200,8 @@ namespace lemni{
 		return std::move(typedExprs);
 	}
 
-	inline std::pair<TypecheckState, std::variant<std::vector<TypedExpr>, TypecheckError>> typecheckAll(LemniTypeSet types, const std::vector<Expr> &exprs){
-		auto state = TypecheckState(types);
+	inline std::pair<TypecheckState, std::variant<std::vector<TypedExpr>, TypecheckError>> typecheckAll(LemniModuleMap mods, const std::vector<Expr> &exprs){
+		auto state = TypecheckState(mods);
 
 		auto res = typecheckAll(state, exprs);
 

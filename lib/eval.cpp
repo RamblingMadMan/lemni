@@ -259,12 +259,6 @@ LemniEvalResult LemniTypedLambdaExprT::eval(LemniEvalState state, LemniEvalBindi
 	return res;
 }
 
-LemniEvalResult LemniTypedImportExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
-	(void)state;
-	(void)bindings;
-	return makeResult(lemniCreateValueModule(module));
-}
-
 LemniEvalResult LemniTypedExportExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
 	(void)state;
 	(void)bindings;
@@ -407,6 +401,13 @@ LemniEvalResult LemniTypedStringUTF8ExprT::eval(LemniEvalState state, LemniEvalB
 	return makeResult(val);
 }
 
+LemniEvalResult LemniTypedModuleExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
+	(void)state;
+	(void)bindings;
+	auto val = lemniCreateValueModule(this->module);
+	return makeResult(val);
+}
+
 LemniEvalResult LemniTypedTypeExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
 	(void)state;
 	(void)bindings;
@@ -480,7 +481,10 @@ struct LemniTypeApp<std::integral_constant<bool, ConvertC>, Partial<F, Ts...>>{
 
 	template<typename ... Args>
 	static decltype(auto) apply(LemniType type, Args &&... args){
-		if(lemniTypeAsUnit(type)){
+		if(lemniTypeAsBottom(type)){
+			return Call<void>::apply(std::forward<Args>(args)...);
+		}
+		else if(lemniTypeAsUnit(type)){
 			return Call<std::conditional_t<ConvertC, LemniUnit, void>>::apply(std::forward<Args>(args)...);
 		}
 		else if(auto boolTy = lemniTypeAsBool(type)){
@@ -775,9 +779,11 @@ template<typename Ret>
 struct FFICallerRet{
 	static LemniEvalFn apply(LemniTypedExtFnDeclExpr fn){
 		static auto callFn = +[](LemniTypedExtFnDeclExpr self, LemniEvalState state, const char *name, void *argPtrs[]){
-			auto fnptr = dlsym(state->dlHandle, name);
+			auto fnptr = self->ptr;
 			if(!fnptr){
-				return makeError(state, fmt::format("Error in dlsym: {}", dlerror()));
+				fnptr = dlsym(state->dlHandle, name);
+				if(!fnptr)
+					return makeError(state, fmt::format("Error in dlsym: {}", dlerror()));
 			}
 
 			if constexpr(std::is_same_v<void, Ret>){
@@ -925,7 +931,7 @@ LemniEvalResult LemniTypedExtFnDeclExprT::eval(LemniEvalState state, LemniEvalBi
 		}
 
 	switch(lemniFunctionTypeNumParams(fnType)){
-		LEMNI_FN_CASE(1)
+		//LEMNI_FN_CASE(1)
 		//LEMNI_FN_CASE(2)
 		/*
 		LEMNI_FN_CASE(3)

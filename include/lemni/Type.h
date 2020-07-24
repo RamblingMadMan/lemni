@@ -40,6 +40,27 @@ extern "C" {
 typedef const struct LemniTypeT *LemniType;
 typedef const struct LemniCTypeT *LemniCType;
 
+#ifdef LEMNI_CPP
+struct LemniTypeT{
+	virtual ~LemniTypeT() = default;
+
+	virtual std::string_view str() const noexcept = 0;
+	virtual std::string_view mangled() const noexcept = 0;
+
+	virtual LemniType base() const noexcept = 0;
+	virtual LemniType abstract() const noexcept = 0;
+
+	virtual std::uint32_t numBits() const noexcept = 0;
+
+	virtual std::uint64_t typeIdx() const noexcept = 0;
+
+	virtual bool isSame(LemniType other) const noexcept = 0;
+	virtual bool isCastable(LemniType to) const noexcept = 0;
+};
+
+struct LemniCTypeT: public LemniTypeT{};
+#endif
+
 typedef const struct LemniPseudoTypeT *LemniPseudoType;
 typedef const struct LemniErrorTypeT *LemniErrorType;
 typedef const struct LemniModuleTypeT *LemniModuleType;
@@ -150,9 +171,24 @@ typedef struct LemniTypeInfoT{
 
 LemniTypeInfo lemniEmptyTypeInfo();
 
+/**
+ * @brief Check if a type is castable to another.
+ * @param from the type to cast from
+ * @param to the type to cast to
+ * @returns whether the conversion would be lossless
+ */
 bool lemniTypeIsCastable(LemniType from, LemniType to);
 
+/**
+ * @brief Check if two types are the same.
+ * @param a first type
+ * @param b second type
+ * @returns whether the types are equivalent
+ */
+bool lemniTypeIsSame(LemniType a, LemniType b);
+
 LemniStr lemniTypeStr(LemniType type);
+LemniStr lemniTypeMangled(LemniType type);
 LemniType lemniTypeBase(LemniType type);
 LemniType lemniTypeAbstract(LemniType type);
 uint32_t lemniTypeNumBits(LemniType type);
@@ -537,14 +573,11 @@ namespace lemni{
 		template<typename T, typename Enable = void>
 		struct CTypeGetter;
 
-		template<>
-		struct CTypeGetter<LemniUnit>{
+		template<typename Unit>
+		struct CTypeGetter<Unit, std::enable_if_t<std::is_same_v<LemniUnit, Unit>>>{
 			static LemniUnitType get(LemniTypeSet types) noexcept{ return lemniTypeSetGetUnit(types); }
 			static LemniType getBare(LemniTypeSet types) noexcept{ auto t = get(types); return lemniUnitAsType(t); }
 		};
-
-		template<>
-		struct CTypeGetter<interop::Unit>: CTypeGetter<LemniUnit>{};
 
 		template<>
 		struct CTypeGetter<bool>{
