@@ -52,10 +52,11 @@ static inline constexpr uint32_t unaryOpFlags(const LemniUnaryOp (&ops)[N]) noex
 }
 
 static inline constexpr auto zeroedTypeInfo() noexcept{
-	LemniTypeInfo info;
-	info.binaryOpFlags = 0;
-	info.unaryOpFlags = 0;
-	info.typeClass = LEMNI_TYPECLASS_EMPTY;
+	auto info = LemniTypeInfo{
+		.binaryOpFlags = 0,
+		.unaryOpFlags = 0,
+		.typeClass = LEMNI_TYPECLASS_EMPTY
+	};
 
 	for(std::size_t i = 0; i < sizeof(info.info.bytes); i++){
 		info.info.bytes[i] = 0;

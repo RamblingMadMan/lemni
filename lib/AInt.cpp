@@ -21,6 +21,7 @@
 
 #include <new>
 #include <memory>
+#include <string>
 
 #define LEMNI_NO_CPP
 #include "AInt.hpp"
