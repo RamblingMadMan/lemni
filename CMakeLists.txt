@@ -20,8 +20,6 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 	add_compile_options("-fconcepts")
 endif()
 
-option(LEMNI_BUILD_EDITOR "Build the editor (Required SDL2)" OFF)
-
 set(LEMNI_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/include)
 
 set(
@@ -74,8 +72,3 @@ link_directories(${CMAKE_BINARY_DIR}/libjit/lib)
 
 add_subdirectory(lib)
 add_subdirectory(repl)
-add_subdirectory(testall)
-
-if(LEMNI_BUILD_EDITOR EQUAL ON)
-add_subdirectory(edit)
-endif(LEMNI_BUILD_EDITOR EQUAL ON)
