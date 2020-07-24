@@ -7,7 +7,7 @@
 #  ARB_INCLUDE_DIRS - The package include directories
 #  ARB_LIBRARIES - The libraries needed to use this package
 
-find_library(ARB_LIBRARY NAMES arb libarb
+find_library(ARB_LIBRARY NAMES arb ARB libarb libARB
         PATHS $ENV{ARB_DIR} ${ARB_DIR} /usr /usr/local /opt/local
         PATH_SUFFIXES lib lib64 x86_64-linux-gnu lib/x86_64-linux-gnu
 )
