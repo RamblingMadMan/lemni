@@ -18,6 +18,7 @@
 
 #include <cstdlib>
 
+#include <memory>
 #include <unordered_map>
 
 #include "lemni/Scope.h"
