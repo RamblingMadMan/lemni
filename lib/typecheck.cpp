@@ -36,15 +36,21 @@ using namespace std::string_literals;
 using namespace std::string_view_literals;
 
 struct LemniTypecheckStateT{
+	~LemniTypecheckStateT(){
+		for(auto expr : alloced){
+			deleteTypedExpr(expr);
+		}
+	}
+
 	LemniModuleMap mods;
 	LemniTypeSet types;
 	LemniScope globalScope;
 
-	std::vector<std::unique_ptr<LemniExprT>> exprs;
-	std::vector<std::unique_ptr<LemniTypedExprT>> typedExprs;
+	//std::vector<std::unique_ptr<LemniExprT>> exprs;
+	std::vector<LemniTypedExpr> alloced;
 	std::vector<std::unique_ptr<std::string>> errStrs;
-	std::map<LemniLValueExpr, LemniTypedExpr> bindings;
-	std::map<LemniLValueExpr, LemniTypedLiteralExpr> literalBindings;
+	//std::map<LemniLValueExpr, LemniTypedExpr> bindings;
+	//std::map<LemniLValueExpr, LemniTypedLiteralExpr> literalBindings;
 };
 
 LemniTypecheckState lemniCreateTypecheckState(LemniModuleMap mods){
@@ -70,7 +76,19 @@ LemniScope lemniTypecheckStateScope(LemniTypecheckStateConst state){
 	return state->globalScope;
 }
 
+LemniTypecheckResult lemniTypecheckEval(LemniTypecheckState state, LemniTypedExpr expr, const LemniNat64 numArgs, LemniTypedExpr *const args){
+	auto nullBindings = LemniPartialBindingsT();
+	return expr->partialEval(state, &nullBindings, numArgs, args);
+}
+
 namespace {
+	inline LemniTypecheckResult litError(LemniLocation loc, LemniStr str){
+		LemniTypecheckResult ret;
+		ret.hasError = true;
+		ret.error = { .loc = loc, .msg = str };
+		return ret;
+	}
+
 	inline LemniTypecheckResult makeError(LemniTypecheckState state, LemniLocation loc, std::string msg){
 /*
 #ifndef NDEBUG
@@ -93,11 +111,315 @@ namespace {
 
 	template<typename T, typename ... Args>
 	inline T *createTypedExpr(LemniTypecheckState state, Args &&... args){
-		auto ptr = std::make_unique<T>(std::forward<Args>(args)...);
-		auto ret = ptr.get();
-		state->typedExprs.emplace_back(std::move(ptr));
-		return ret;
+		auto p = newTypedExpr<T>(std::forward<Args>(args)...);
+		if(!p) return nullptr;
+
+		auto res = std::upper_bound(begin(state->alloced), end(state->alloced), p);
+		state->alloced.insert(res, p);
+
+		return p;
 	}
+
+	template<typename ... Fs> struct Overload: Fs...{ using Fs::operator()...; };
+	template<typename ... Fs> Overload(Fs...) -> Overload<Fs...>;
+
+	struct NaturalAInt{
+		LemniAInt value;
+	};
+
+	namespace detail{
+		template<typename...> struct Tag;
+
+		template<typename T, typename = void> struct ValueTyped;
+
+		template<>
+		struct ValueTyped<NaturalAInt>{
+			static LemniTypedANatExpr create(LemniTypecheckState state, NaturalAInt val) noexcept{
+				return createTypedExpr<LemniTypedANatExprT>(state, lemniTypeSetGetNat(state->types, 0), lemni::AInt::from(val.value));
+			}
+		};
+
+		template<>
+		struct ValueTyped<lemni::AInt>{
+			static LemniTypedAIntExpr create(LemniTypecheckState state, lemni::AInt val) noexcept{
+				return createTypedExpr<LemniTypedAIntExprT>(state, lemniTypeSetGetInt(state->types, 0), std::move(val));
+			}
+		};
+
+		template<>
+		struct ValueTyped<lemni::ARatio>{
+			static LemniTypedARatioExpr create(LemniTypecheckState state, lemni::ARatio val) noexcept{
+				return createTypedExpr<LemniTypedARatioExprT>(state, lemniTypeSetGetRatio(state->types, 0), std::move(val));
+			}
+		};
+
+		template<>
+		struct ValueTyped<lemni::AReal>{
+			static LemniTypedARealExpr create(LemniTypecheckState state, lemni::AReal val) noexcept{
+				return createTypedExpr<LemniTypedARealExprT>(state, lemniTypeSetGetReal(state->types, 0), std::move(val));
+			}
+		};
+
+		template<typename Nat>
+		struct ValueTyped<Nat, std::enable_if_t<lemni::is_natural_v<Nat>>>{
+			using Expr = std::conditional_t<
+					std::is_same_v<Nat, LemniNat16>, LemniTypedNat16ExprT, std::conditional_t<
+					std::is_same_v<Nat, LemniNat32>, LemniTypedNat32ExprT, std::conditional_t<
+					std::is_same_v<Nat, LemniNat64>, LemniTypedNat64ExprT, void
+				>>>;
+
+			static const Expr *create(LemniTypecheckState state, const Nat val) noexcept{
+				return createTypedExpr<Expr>(state, lemniTypeSetGetNat(state->types, sizeof(Nat) * CHAR_BIT), val);
+			}
+		};
+
+		template<typename Int>
+		struct ValueTyped<Int, std::enable_if_t<lemni::is_integer_v<Int>>>{
+			using Expr = std::conditional_t<
+					std::is_same_v<Int, LemniInt16>, LemniTypedInt16ExprT, std::conditional_t<
+					std::is_same_v<Int, LemniInt32>, LemniTypedInt32ExprT, std::conditional_t<
+					std::is_same_v<Int, LemniInt64>, LemniTypedInt64ExprT, void
+				>>>;
+
+			static const Expr *create(LemniTypecheckState state, const Int val) noexcept{
+				return createTypedExpr<Expr>(state, lemniTypeSetGetInt(state->types, sizeof(Int) * CHAR_BIT), val);
+			}
+		};
+
+		template<typename Ratio>
+		struct ValueTyped<Ratio, std::enable_if_t<lemni::is_ratio_v<Ratio>>>{
+			using Expr = std::conditional_t<
+					std::is_same_v<Ratio, LemniRatio32>, LemniTypedRatio32ExprT, std::conditional_t<
+					std::is_same_v<Ratio, LemniRatio64>, LemniTypedRatio64ExprT, std::conditional_t<
+					std::is_same_v<Ratio, LemniRatio128>, LemniTypedRatio128ExprT, void
+				>>>;
+
+			static const Expr *create(LemniTypecheckState state, const Ratio val) noexcept{
+				return createTypedExpr<Expr>(state, lemniTypeSetGetRatio(state->types, sizeof(Ratio) * CHAR_BIT), val);
+			}
+		};
+
+		template<typename Real>
+		struct ValueTyped<Real, std::enable_if_t<lemni::is_real_v<Real>>>{
+			using Expr = std::conditional_t<
+					std::is_same_v<Real, float>, LemniTypedReal32ExprT, std::conditional_t<
+					std::is_same_v<Real, double>, LemniTypedReal64ExprT, void
+				>>;
+
+			static const Expr *create(LemniTypecheckState state, const Real val) noexcept{
+				return createTypedExpr<Expr>(state, lemniTypeSetGetReal(state->types, sizeof(Real) * CHAR_BIT), val);
+			}
+		};
+	}
+
+	template<typename T>
+	inline LemniTypecheckResult typecheckCppLit(LemniTypecheckState state, T val){
+		auto expr = detail::ValueTyped<std::remove_cv_t<T>>::create(state, val);
+		return makeResult(expr);
+	}
+
+	template<typename F, typename ... Args>
+	inline auto typedNumApply(F &&f, LemniTypedNumExpr num, Args &&... args){
+		static constexpr auto natApply = [](LemniTypedNatExpr nat, auto &&f, auto &&... args){
+			if(auto nat16 = dynamic_cast<LemniTypedNat16Expr>(nat)) return f(nat16->value, std::forward<Args>(args)...);
+			else if(auto nat32 = dynamic_cast<LemniTypedNat32Expr>(nat)) return f(nat32->value, std::forward<Args>(args)...);
+			else if(auto nat64 = dynamic_cast<LemniTypedNat64Expr>(nat)) return f(nat64->value, std::forward<Args>(args)...);
+			else if(auto anat = dynamic_cast<LemniTypedANatExpr>(nat)) return f(NaturalAInt{ lemniCreateAIntCopy(anat->value) }, std::forward<Args>(args)...);
+			else return f(nat, std::forward<Args>(args)...);
+		};
+
+		static constexpr auto intApply = [](LemniTypedIntExpr int_, auto &&f, auto &&... args){
+			if(auto int16 = dynamic_cast<LemniTypedInt16Expr>(int_)) return f(int16->value, std::forward<Args>(args)...);
+			else if(auto int32 = dynamic_cast<LemniTypedInt32Expr>(int_)) return f(int32->value, std::forward<Args>(args)...);
+			else if(auto int64 = dynamic_cast<LemniTypedInt64Expr>(int_)) return f(int64->value, std::forward<Args>(args)...);
+			else if(auto aint = dynamic_cast<LemniTypedAIntExpr>(int_)) return f(aint->value, std::forward<Args>(args)...);
+			else return f(int_, std::forward<Args>(args)...);
+		};
+
+		static constexpr auto ratioApply = [](LemniTypedRatioExpr ratio, auto &&f, auto &&... args){
+			if(auto rat32 = dynamic_cast<LemniTypedRatio32Expr>(ratio)) return f(rat32->value, std::forward<Args>(args)...);
+			else if(auto rat64 = dynamic_cast<LemniTypedRatio64Expr>(ratio)) return f(rat64->value, std::forward<Args>(args)...);
+			else if(auto rat128 = dynamic_cast<LemniTypedRatio128Expr>(ratio)) return f(rat128->value, std::forward<Args>(args)...);
+			else if(auto arat = dynamic_cast<LemniTypedARatioExpr>(ratio)) return f(arat->value, std::forward<Args>(args)...);
+			else return f(ratio, std::forward<Args>(args)...);
+		};
+
+		static constexpr auto realApply = [](LemniTypedRealExpr real, auto &&f, auto &&... args){
+			if(auto real32 = dynamic_cast<LemniTypedReal32Expr>(real)) return f(real32->value, std::forward<Args>(args)...);
+			else if(auto real64 = dynamic_cast<LemniTypedReal64Expr>(real)) return f(real64->value, std::forward<Args>(args)...);
+			else if(auto areal = dynamic_cast<LemniTypedARealExpr>(real)) return f(areal->value, std::forward<Args>(args)...);
+			else return f(real, std::forward<Args>(args)...);
+		};
+
+		if(auto nat = dynamic_cast<LemniTypedNatExpr>(num)) return natApply(nat, std::forward<F>(f), std::forward<Args>(args)...);
+		else if(auto int_ = dynamic_cast<LemniTypedIntExpr>(num)) return intApply(int_, std::forward<F>(f), std::forward<Args>(args)...);
+		else if(auto ratio = dynamic_cast<LemniTypedRatioExpr>(num)) return ratioApply(ratio, std::forward<F>(f), std::forward<Args>(args)...);
+		else if(auto real = dynamic_cast<LemniTypedRealExpr>(num)) return realApply(real, std::forward<F>(f), std::forward<Args>(args)...);
+		else return f(num, std::forward<Args>(args)...);
+	}
+
+	/*
+	inline LemniTypecheckResult typecheckNumBinopDispatch(LemniTypecheckState state, const LemniBinaryOp op, LemniTypedNumExpr lhs, LemniTypedNumExpr rhs){
+		static constexpr auto lhsApplicator = [](auto lhsVal, LemniTypecheckState state, const LemniBinaryOp op, LemniTypedNumExpr rhs){
+			static constexpr auto rhsApplicator = [](auto rhsVal, auto lhsVal, LemniTypecheckState state, const LemniBinaryOp op){
+				switch(op){
+					case LEMNI_BINARY_ADD:{ return lhsVal + rhsVal; }
+					case LEMNI_BINARY_SUB:{ return lhsVal - rhsVal; }
+					case LEMNI_BINARY_MUL:{ return lhsVal * rhsVal; }
+					case LEMNI_BINARY_DIV:{ return lhsVal / rhsVal; }
+					case LEMNI_BINARY_MOD:{ return lhsVal % rhsVal; }
+					default:{ return makeError(state, LemniLocation{ UINT32_MAX, UINT32_MAX }, "undefined binary operator for numeric types"); }
+				}
+			};
+
+			return typedNumApply(rhsApplicator, rhs, state, op, lhsVal);
+		};
+
+		return typedNumApply(lhsApplicator, lhs, state, op, rhs);
+	}
+	*/
+
+	inline LemniTypecheckResult typecheckNumUnaryOpDispatch(LemniTypecheckState state, const LemniUnaryOp op, LemniTypedNumExpr num){
+		static constexpr auto applicator = [](auto val, LemniTypecheckState state, const LemniUnaryOp op) -> LemniTypecheckResult{
+			using Val = std::remove_cv_t<decltype(val)>;
+
+			if constexpr(std::is_base_of_v<LemniTypedExprT, std::remove_pointer_t<Val>>){
+				auto resType = lemniUnaryOpResultType(state->types, val->type(), op);
+				auto expr = createTypedExpr<LemniTypedUnaryOpExprT>(state, resType, op, val);
+				return makeResult(expr);
+			}
+			else{
+				switch(op){
+					case LEMNI_UNARY_NEG:{
+						if constexpr(std::is_same_v<Val, NaturalAInt>){
+							return typecheckCppLit(state, -lemni::AInt::from(val.value));
+						}
+						else if constexpr(lemni::is_natural_v<Val> || std::is_same_v<Val, NaturalAInt>){
+							if constexpr(std::is_same_v<Val, LemniNat16>){
+								return typecheckCppLit(state, -std::int32_t(val));
+							}
+							else if constexpr(std::is_same_v<Val, LemniNat32>){
+								return typecheckCppLit(state, -std::int64_t(val));
+							}
+							else if constexpr(std::is_same_v<Val, LemniNat64>){
+								return typecheckCppLit(state, -lemni::AInt(val));
+							}
+							else{
+								return typecheckCppLit(state, -val);
+							}
+						}
+						else if constexpr(lemni::is_integer_v<Val>){
+							return typecheckCppLit(state, Val(-val));
+						}
+						else if constexpr(lemni::is_ratio_v<Val>){
+							return typecheckCppLit(state, Val{ decltype(Val::num)(-val.num), val.den });
+						}
+						else{
+							return typecheckCppLit(state, -val);
+						}
+					}
+					default:{ return makeError(state, LemniLocation{ UINT32_MAX, UINT32_MAX }, "undefined unary operator for numeric type"); }
+				}
+			}
+		};
+
+		return typedNumApply(applicator, num, state, op);
+	}
+
+	/*
+	inline LemniTypecheckResult typecheckNumBinop(LemniTypecheckState state, const LemniBinaryOp op, LemniTypedNumExpr lhs, LemniTypedConstantExpr rhs){
+		if(auto rhsNum = dynamic_cast<LemniTypedNumExpr>(rhs)){
+			return typecheckNumBinopDispatch(state, op, lhs, rhsNum);
+		}
+
+		auto resultType = lemniBinaryOpResultType(state->types, lhs->type(), rhs->type(), op);
+		auto expr = createTypedExpr<LemniTypedUnaryOpExprT>(state, resultType, op, lhs, rhs);
+		return makeResult(expr);
+	}
+
+	inline LemniTypecheckResult typecheckConstBinop(LemniTypecheckState state, const LemniBinaryOp op, LemniTypedConstantExpr lhs, LemniTypedConstantExpr rhs){
+		auto lhsNum = dynamic_cast<LemniTypedNumExpr>(lhs);
+		if(lhsNum) return typecheckNumBinop(state, op, lhsNum, rhs);
+
+		auto resultType = lemniBinaryOpResultType(state->types, lhs->type(), rhs->type(), op);
+		auto expr = createTypedExpr<LemniTypedUnaryOpExprT>(state, resultType, op, lhs, rhs);
+		return makeResult(expr);
+	}
+
+	inline LemniTypecheckResult typecheckBinop(LemniTypecheckState state, const LemniBinaryOp op, LemniTypedExpr lhs, LemniTypedExpr rhs){
+		auto lhsConst = dynamic_cast<LemniTypedConstantExpr>(lhs);
+		auto rhsConst = dynamic_cast<LemniTypedConstantExpr>(rhs);
+		if(lhsConst && rhsConst)
+			return typecheckConstBinop(state, op, lhsConst, rhsConst);
+
+		auto resultType = lemniBinaryOpResultType(state->types, lhs->type(), rhs->type(), op);
+		auto expr = createTypedExpr<LemniTypedBinaryOpExprT>(state, resultType, op, lhs, rhs);
+		return makeResult(expr);
+	}
+	*/
+
+	inline LemniTypecheckResult typecheckNumUnaryOp(LemniTypecheckState state, const LemniUnaryOp op, LemniTypedNumExpr num){
+		if(auto numNat = dynamic_cast<LemniTypedNatExpr>(num)){}
+		else if(auto numInt = dynamic_cast<LemniTypedIntExpr>(num)){}
+		else if(auto numRat = dynamic_cast<LemniTypedRatioExpr>(num)){}
+		else if(auto numReal = dynamic_cast<LemniTypedRealExpr>(num)){}
+
+		auto resultType = lemniUnaryOpResultType(state->types, num->type(), op);
+		auto expr = createTypedExpr<LemniTypedUnaryOpExprT>(state, resultType, op, num);
+		return makeResult(expr);
+	}
+
+	// TODO: pass location in to this function
+	inline LemniTypecheckResult typecheckUnaryOp(LemniTypecheckState state, const LemniUnaryOp op, LemniTypedExpr val){
+		if(auto valConst = dynamic_cast<LemniTypedConstantExpr>(val)){
+			if(auto valNum = dynamic_cast<LemniTypedNumExpr>(valConst)){
+				return typecheckNumUnaryOp(state, op, valNum);
+			}
+		}
+
+		// TODO: write better error message
+
+		auto resultType = lemniUnaryOpResultType(state->types, val->type(), op);
+		if(!resultType) return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("invalid unary op on value type"));
+
+		auto expr = createTypedExpr<LemniTypedUnaryOpExprT>(state, resultType, op, val);
+
+		return makeResult(expr);
+	}
+}
+
+LemniTypecheckResult LemniTypedExprT::partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept{
+	if(auto thisBound = bindings->find(this)) return thisBound->partialEval(state, bindings, numArgs, args);
+	else if(numArgs > 0) return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("arguments passed to non-function expression"));
+	else return makeResult(this);
+}
+
+LemniTypecheckResult LemniTypedUnaryOpExprT::partialEval(
+	LemniTypecheckState state, LemniPartialBindings bindings,
+	const LemniNat64 numArgs, LemniTypedExpr *const args
+) const noexcept{
+	if(auto found = bindings->find(value)){
+		auto opRes = typecheckUnaryOp(state, op, found);
+		if(opRes.hasError) return opRes;
+		else if(numArgs > 0) return opRes.expr->partialEval(state, bindings, numArgs, args);
+		else return opRes;
+	}
+	else if(numArgs > 0) return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("arguments passed to non-function expression"));
+	else return makeResult(this);
+}
+
+LemniTypecheckResult LemniTypedFnDefExprT::partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept{
+	LemniInt64 newArity = params.size() - numArgs;
+
+	if(newArity < 0) return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("too many arguments passed in function call"));
+
+	auto fnBound = LemniPartialBindingsT(bindings);
+
+	for(LemniNat64 i = 0; i < numArgs; i++){
+		fnBound.bound[params[i]] = args[i];
+	}
+
+	return body->partialEval(state, &fnBound, 0, nullptr);
 }
 
 LemniTypedModuleExpr lemniCreateTypedModule(LemniTypecheckState state, const LemniStr alias, LemniModule module){
@@ -222,7 +544,7 @@ LemniTypecheckResult LemniApplicationExprT::typecheck(LemniTypecheckState state,
 			if(!argType->isCastable(paramType)){
 				auto errStr = fmt::format(
 					"can not cast argument {} from `{}` to `{}`",
-					i + 1, argType->str(), paramType->str()
+					i + 1, lemni::toStdStrView(argType->str()), lemni::toStdStrView(paramType->str())
 				);
 
 				return makeError(state, loc, std::move(errStr));
@@ -231,7 +553,7 @@ LemniTypecheckResult LemniApplicationExprT::typecheck(LemniTypecheckState state,
 			argExprs.emplace_back(argRes.expr);
 		}
 
-		auto appExpr = createTypedExpr<LemniTypedApplicationExprT>(state, fnType->result, fnRes.expr, std::move(argExprs));
+		auto appExpr = createTypedExpr<LemniTypedApplicationExprT>(state, fnType->result(), fnRes.expr, std::move(argExprs));
 		return makeResult(appExpr);
 	}
 	else if(auto pseudoType = lemniTypeAsPseudo(fnExprType)){

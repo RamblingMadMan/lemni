@@ -1,9 +1,15 @@
 #include <cstdio>
 #include <cinttypes>
 
+#include <vector>
+#include <utility>
+#include <map>
 #include <string_view>
+#include <filesystem>
+#include <fstream>
 #include <tuple>
 using namespace std::literals;
+namespace fs = std::filesystem;
 
 #include "fmt/core.h"
 #include "fmt/color.h"
@@ -108,6 +114,10 @@ void errorCallback(const std::string_view errType, const Error &err){
 
 void typedCallback(replxx::Replxx &repl, lemni::EvalState &evalState, lemni::TypecheckState &typeState, const std::vector<lemni::TypedExpr> &exprs){
 	(void)typeState;
+
+	std::vector<lemni::Value> stored;
+	stored.reserve(exprs.size());
+
 	for(std::size_t i = 0; i < exprs.size(); i++){
 		auto typedExpr = exprs[i];
 		auto val = lemni::eval(evalState, typedExpr);
@@ -117,7 +127,7 @@ void typedCallback(replxx::Replxx &repl, lemni::EvalState &evalState, lemni::Typ
 					std::fprintf(stderr, "[Eval Error] %.*s\n", int(err.msg.len), err.msg.ptr);
 					return false;
 				},
-				[i, typedExpr, &repl](const lemni::Value &val){
+				[i, typedExpr, &repl, &stored](lemni::Value val){
 					auto str = val.toString();
 					auto type = lemniTypedExprType(typedExpr);
 					auto typeStr = lemniTypeStr(type);
@@ -126,6 +136,8 @@ void typedCallback(replxx::Replxx &repl, lemni::EvalState &evalState, lemni::Typ
 						repl.print("%" PRIu64 ": %.*s\n", i, typeStr.len, typeStr.ptr);
 
 					repl.print(" -> %.*s\n", str.size(), str.c_str());
+
+					stored.emplace_back(std::move(val));
 
 					return true;
 				}
@@ -167,78 +179,34 @@ uint16_t toU16(LemniBinaryOp op){
 #define ILANG_REPL_MIN 1
 #define ILANG_REPL_REV 0
 
-struct TestT{
-	short x;
-	double y;
-	short z;
-	int w;
-};
-
 int main(int argc, char *argv[]){
-	(void)argc;
-	(void)argv;
+	std::vector<fs::path> paths;
+	std::vector<std::string_view> exprs;
 
-	/*
-	enum DataType{
-		DATA_INT, DATA_FLOAT, DATA_DOUBLE, DATA_SHORT
-	};
-
-	constexpr size_t dataTypeAlignments[] = {
-		alignof(int), alignof(float), alignof(double), alignof(short)
-	};
-
-	constexpr size_t dataTypeSizes[] = {
-		sizeof(int), sizeof(float), sizeof(double), sizeof(short)
-	};
-
-	constexpr std::string_view dataMemberNames[] = {
-		"x", "y", "z", "w"
-	};
-
-	constexpr DataType dataMembers[] = {
-		DATA_SHORT, DATA_DOUBLE, DATA_SHORT, DATA_INT
-	};
-
-	constexpr size_t numDataMembers = sizeof(dataMembers)/sizeof(*dataMembers);
-
-	size_t alignment = 1;
-	size_t size = 0;
-
-	fmt::print("offsetof | member\n"
-			   "-----------------\n");
-
-	for(size_t i = 0; i < numDataMembers; i++){
-		auto t = dataMembers[i];
-		auto s = dataTypeSizes[t];
-		auto a = dataTypeAlignments[t];
-		if(size % a != 0){
-			auto offset = a - size % a;
-			size += offset;
+	for(int i = 1; i < argc; i++){
+		if(argc % 2 != 1){
+			fmt::print(stderr, "Wrong number of parameters.\nUsage: {} [-i filename | -e \"expr\"]\n", argv[0]);
+			return -1;
 		}
 
-		alignment = std::max(alignment, a);
+		auto arg = std::string_view(argv[i]);
+		if(arg == "-i"){
+			auto path = fs::path(argv[++i]);
+			if(!fs::exists(path) || !fs::is_regular_file(path)){
+				fmt::print(stderr, "File '{}' does not exist or is not a regular file\n", path.c_str());
+				return -2;
+			}
 
-		fmt::print("{:>8} |{:>7}\n", size, dataMemberNames[i]);
-		size += s;
+			paths.emplace_back(path);
+		}
+		else if(arg == "-e"){
+			exprs.emplace_back(argv[++i]);
+		}
+		else{
+			fmt::print(stderr, "Unexpected parameter '{}'\nUsage: {} [-i filename | -e \"expr\"]\n", arg, argv[0]);
+			return -1;
+		}
 	}
-
-	fmt::print("calced size:  {}\n", size);
-	fmt::print("calced align: {}\n", alignment);
-	*/
-
-	replxx::Replxx repl;
-
-	repl.clear_screen();
-
-	fmt::print("Infinity lang REPL v{}.{} rev {}\n", ILANG_REPL_MAJ, ILANG_REPL_MIN, ILANG_REPL_REV);
-
-	fmt::print(
-		"Enter {} for help, or {} to quit\n",
-		fmt::format(fmt::fg(fmt::color::pink), "Repl.help ()"),
-		fmt::format(fmt::fg(fmt::color::pink), "Repl.quit ()")
-	);
-
-	repl.set_highlighter_callback(lemniHighlightCb);
 
 	auto types = lemni::TypeSet();
 	auto mods = lemni::ModuleMap(types);
@@ -255,6 +223,134 @@ int main(int argc, char *argv[]){
 	auto paramName = LEMNICSTR("doShow");
 
 	auto replModule = lemni::Module(mods, LEMNICSTR("Repl"));
+
+	replxx::Replxx repl;
+
+	repl.clear_screen();
+
+	for(auto &&p : paths){
+		std::ifstream file(p);
+		std::string src, tmp;
+		while(std::getline(file, tmp))
+			src += tmp + '\n';
+
+		auto lexed = lemni::lexAll(src);
+		auto toks = std::visit(
+			Overload{
+				[&](std::vector<lemni::Token> toks){ return toks; },
+				[&](LemniLexError err) -> std::vector<lemni::Token>{
+					fmt::print(stderr, "Error lexing file '{}'@{}.{}: {}\n",
+						p.c_str(), err.loc.line, err.loc.col, lemni::toStdStrView(err.msg));
+
+					std::exit(-3);
+				}
+			},
+			lexed
+		);
+
+		auto parsed = lemni::parseAll(toks);
+		auto exprs = std::visit(
+			Overload{
+				[&](std::vector<lemni::Expr> exprs){ return exprs; },
+				[&](LemniParseError err) -> std::vector<lemni::Expr>{
+					fmt::print(stderr, "Error parsing file '{}'@{}.{}: {}\n",
+						p.c_str(), err.loc.line, err.loc.col, lemni::toStdStrView(err.msg));
+
+					std::exit(-3);
+				}
+			},
+			parsed.second
+		);
+		
+		auto typed = lemni::typecheckAll(typeState, exprs);
+		auto typedExprs = std::visit(
+			Overload{
+				[&](std::vector<lemni::TypedExpr> exprs){ return exprs; },
+				[&](LemniTypecheckError err) -> std::vector<lemni::TypedExpr>{
+					fmt::print(stderr, "Error typechecking file '{}'@{}.{}: {}\n",
+						p.c_str(), err.loc.line, err.loc.col, lemni::toStdStrView(err.msg));
+
+					std::exit(-3);
+				}
+			},
+			typed
+		);
+	}
+
+	for(auto expr : exprs){
+		auto lexed = lemni::lexAll(expr);
+		auto toks = std::visit(
+			Overload{
+				[&](std::vector<lemni::Token> toks){ return toks; },
+				[&](LemniLexError err) -> std::vector<lemni::Token>{
+					fmt::print(stderr, "Error lexing expression '{}': {}\n",
+						expr, lemni::toStdStrView(err.msg));
+
+					std::exit(-4);
+				}
+			},
+			lexed
+		);
+
+		auto parsed = lemni::parseAll(toks);
+		auto exprs = std::visit(
+			Overload{
+				[&](auto v){ return v; },
+				[&](LemniParseError err) -> std::vector<lemni::Expr>{
+					fmt::print(stderr, "Error parsing expression '{}': {}\n",
+						expr, lemni::toStdStrView(err.msg));
+
+					std::exit(-4);
+				}
+			},
+			parsed.second
+		);
+
+		auto typed = lemni::typecheckAll(typeState, exprs);
+		auto typedExprs = std::visit(
+			Overload{
+				[&](auto v){ return v; },
+				[&](LemniTypecheckError err) -> std::vector<lemni::TypedExpr>{
+					fmt::print(stderr, "Error parsing expression '{}': {}\n",
+						expr, lemni::toStdStrView(err.msg));
+
+					std::exit(-4);
+				}
+			},
+			typed
+		);
+
+		for(auto typedExpr : typedExprs){
+			auto evaled = lemni::eval(evalState, typedExpr);
+			auto value = std::visit(
+				Overload{
+					[&](auto v){ return v; },
+					[&](LemniEvalError err) -> lemni::Value{
+						fmt::print(stderr, "Error evaluating expression '{}': {}\n",
+							expr, lemni::toStdStrView(err.msg));
+
+						std::exit(-4);
+					}
+				},
+				evaled
+			);
+
+			auto str = value.toString();
+			fmt::print("{}\n", str);
+		}
+	}
+
+	if(paths.empty() && exprs.empty()){
+		fmt::print("Infinity lang REPL v{}.{} rev {}\n", ILANG_REPL_MAJ, ILANG_REPL_MIN, ILANG_REPL_REV);
+
+		fmt::print(
+			"Enter {} for help, or {} to quit\n",
+			fmt::format(fmt::fg(fmt::color::pink), "Repl.help ()"),
+			fmt::format(fmt::fg(fmt::color::pink), "Repl.quit ()")
+		);
+	}
+
+	repl.set_highlighter_callback(lemniHighlightCb);
 
 	std::vector<LemniTypedExtFnDeclExpr> extFns = {
 		lemniModuleCreateExtFn(

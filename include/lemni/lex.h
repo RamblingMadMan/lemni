@@ -106,6 +106,7 @@ LemniLexResult lemniLex(LemniLexState state);
 }
 
 #ifndef LEMNI_NO_CPP
+#include <limits>
 #include <string_view>
 #include <variant>
 #include <vector>

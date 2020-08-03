@@ -16,13 +16,15 @@ For an example of lexing and parsing take a look at `testall/main.cpp`.
 - GNU MP
 - GNU MPFR
 - ArbLib
+- libffi
+- LLVM 10
 
 #### Ubuntu
 
 ```bash
 sudo apt --no-install-suggests --no-install-recommends install \
   cmake-data cmake libgmp-dev libmpfr-dev libflint-dev libflint-arb-dev \
-  libicu-dev libgccjit-10-dev g++
+  libicu-dev libffi-dev llvm-10-runtime llvm-10-dev g++
 ```
 
 ### Building
@@ -67,7 +69,7 @@ You should be met with a prompt like so:
 
 ```bash
 Infinity lang REPL v4.2 rev 0
-Enter replHelp () for help, or replQuit () to quit
+Enter Repl.help () for help, or Repl.quit () to quit
 
 >
 ```
@@ -87,24 +89,17 @@ prompt(msg) =
 capitalize(name) =
 	(Chars.toUpper (head name)) ++ (tail name)
 
-stripLeadingWs(name) =
-	res = name
-	
-	while Chars.isSpace (head res) do
-		res <- tail res
-	
-	res
-
-stripTrailingWs(name) =
-	if Chars.isSpace (last name) then
-		stripTrailingWs (init name)
+stripWs(name) =
+	if Chars.isSpace (head name) then
+		stripWs (tail name)
+	elif Chars.isSpace (last name) then
+		stripWs (init name)
 	else
 		name
 
 main() =
 	name = prompt "What's your name? "
-	name = stripTrailingWs name
-	name = stripLeadingWs name
+	name = stripWs name
 	name = capitalize name
 	IO.outln ("Hello, " ++ name ++ "!")
 ``` 
@@ -113,7 +108,8 @@ main() =
 
 Thank you to all the developers behind the following open-source projects that made this possible:
 
-- [GCCJIT](https://gcc.gnu.org/wiki/JIT)
+- [LLVM](https://llvm.org/)
+- [libffi](https://sourceware.org/libffi/)
 - [ICU4C](http://site.icu-project.org/)
 - [GNU MP](https://gmplib.org/)
 - [GNU MPFR](https://www.mpfr.org/)

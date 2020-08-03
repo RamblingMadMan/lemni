@@ -20,6 +20,7 @@
 #define LEMNI_TYPE_H 1
 
 #include "Macros.h"
+#include "Interop.h"
 #include "Str.h"
 #include "Operator.h"
 
@@ -38,28 +39,6 @@ extern "C" {
  * @brief Opaque handle to a type
  */
 typedef const struct LemniTypeT *LemniType;
-typedef const struct LemniCTypeT *LemniCType;
-
-#ifdef LEMNI_CPP
-struct LemniTypeT{
-	virtual ~LemniTypeT() = default;
-
-	virtual std::string_view str() const noexcept = 0;
-	virtual std::string_view mangled() const noexcept = 0;
-
-	virtual LemniType base() const noexcept = 0;
-	virtual LemniType abstract() const noexcept = 0;
-
-	virtual std::uint32_t numBits() const noexcept = 0;
-
-	virtual std::uint64_t typeIdx() const noexcept = 0;
-
-	virtual bool isSame(LemniType other) const noexcept = 0;
-	virtual bool isCastable(LemniType to) const noexcept = 0;
-};
-
-struct LemniCTypeT: public LemniTypeT{};
-#endif
 
 typedef const struct LemniPseudoTypeT *LemniPseudoType;
 typedef const struct LemniErrorTypeT *LemniErrorType;
@@ -70,6 +49,15 @@ typedef const struct LemniBottomTypeT *LemniBottomType;
 typedef const struct LemniMetaTypeT *LemniMetaType;
 typedef const struct LemniUnitTypeT *LemniUnitType;
 typedef const struct LemniBoolTypeT *LemniBoolType;
+
+typedef const struct LemniCTypeT *LemniCType;
+typedef const struct LemniCConstTypeT *LemniCConstType;
+typedef const struct LemniCPtrTypeT *LemniCPtrType;
+typedef const struct LemniCVoidTypeT *LemniCVoidType;
+typedef const struct LemniCIntTypeT *LemniCIntType;
+typedef const struct LemniCUIntTypeT *LemniCUIntType;
+typedef const struct LemniCFloatTypeT *LemniCFloatType;
+typedef const struct LemniCDoubleTypeT *LemniCDoubleType;
 
 typedef const struct LemniNumberTypeT *LemniNumberType;
 typedef const struct LemniRealTypeT *LemniRealType;
@@ -96,6 +84,88 @@ typedef struct {
 	LemniStr name;
 	LemniType type;
 } LemniRecordTypeField;
+
+#ifdef LEMNI_CPP
+struct LemniTypeT{
+	virtual ~LemniTypeT() = default;
+
+	virtual LemniStr str() const noexcept = 0;
+	virtual LemniStr mangled() const noexcept = 0;
+
+	virtual LemniType base() const noexcept = 0;
+	virtual LemniType abstract() const noexcept = 0;
+
+	virtual LemniNat32 numBits() const noexcept = 0;
+
+	virtual LemniNat64 typeIdx() const noexcept = 0;
+
+	virtual bool isSame(LemniType other) const noexcept = 0;
+	virtual bool isCastable(LemniType to) const noexcept = 0;
+};
+
+struct LemniPseudoTypeT: LemniTypeT{};
+struct LemniErrorTypeT: LemniTypeT{};
+struct LemniModuleTypeT: LemniTypeT{};
+
+struct LemniTopTypeT: LemniTypeT{};
+struct LemniBottomTypeT: LemniTypeT{};
+struct LemniMetaTypeT: LemniTypeT{};
+struct LemniUnitTypeT: LemniTypeT{};
+struct LemniBoolTypeT: LemniTypeT{};
+
+struct LemniCTypeT: LemniTypeT{};
+struct LemniCConstTypeT: LemniCTypeT{};
+struct LemniCPtrTypeT: LemniCTypeT{};
+struct LemniCVoidTypeT: LemniCTypeT{};
+struct LemniCIntTypeT: LemniCTypeT{};
+struct LemniCUIntTypeT: LemniCTypeT{};
+struct LemniCFloatTypeT: LemniCTypeT{};
+struct LemniCDoubleTypeT: LemniCTypeT{};
+
+struct LemniNumberTypeT: LemniTypeT{};
+struct LemniRealTypeT: LemniTypeT{};
+struct LemniRatioTypeT: LemniTypeT{};
+struct LemniIntTypeT: LemniTypeT{};
+struct LemniNatTypeT: LemniTypeT{};
+
+struct LemniStringTypeT: LemniTypeT{};
+struct LemniStringUTF8TypeT: LemniTypeT{};
+struct LemniStringASCIITypeT: LemniTypeT{};
+
+struct LemniFunctionTypeT: LemniTypeT{
+	virtual LemniType result() const noexcept = 0;
+	virtual LemniNat64 numParams() const noexcept = 0;
+	virtual LemniType param(const LemniNat64 idx) const noexcept = 0;
+};
+
+struct LemniClosureTypeT: LemniTypeT{
+	virtual LemniFunctionType fn() const noexcept = 0;
+	virtual LemniNat64 numClosed() const noexcept = 0;
+	virtual LemniType closed(const LemniNat64 idx) const noexcept = 0;
+};
+
+struct LemniSumTypeT: LemniTypeT{
+	virtual LemniNat64 numCases() const noexcept = 0;
+	virtual LemniType case_(const LemniNat64 idx) const noexcept = 0;
+};
+
+struct LemniProductTypeT: LemniTypeT{
+	virtual LemniNat64 numComponents() const noexcept = 0;
+	virtual LemniType component(const LemniNat64 idx) const noexcept = 0;
+};
+
+struct LemniSigmaTypeT: LemniTypeT{};
+
+struct LemniArrayTypeT: LemniTypeT{
+	virtual LemniType element() const noexcept = 0;
+	virtual LemniNat64 numElements() const noexcept = 0;
+};
+
+struct LemniRecordTypeT: LemniTypeT{
+	virtual LemniNat64 numFields() const noexcept = 0;
+	virtual const LemniRecordTypeField *field(const LemniNat64 idx) const noexcept = 0;
+};
+#endif
 
 LEMNI_BITFLAG_ENUM_T(LemniTypeClass, LEMNI_TYPECLASS,
 	EMPTY,

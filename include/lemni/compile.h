@@ -70,7 +70,7 @@ void lemniDestroyCompileState(LemniCompileState state);
  * @param numExprs number of expressions in \p exprs .
  * @returns result of the compilation
  */
-LemniCompileResult lemniCompile(LemniCompileState state, LemniTypedExpr *const exprs, const size_t numExprs);
+LemniCompileResult lemniCompile(LemniCompileState state, LemniTypedExpr *const exprs, const LemniNat64 numExprs);
 
 /**
  * @brief Destroy an object previously created by \ref lemniCompile .

@@ -18,6 +18,8 @@
 
 #include "TypedExpr.hpp"
 
+LemniStr lemniTypedExprStr(LemniTypedExpr expr){ return expr->toStr(); }
+
 LemniType lemniTypedExprType(LemniTypedExpr expr){ return expr->type(); }
 
 LemniStr lemniTypedLValueExprId(LemniTypedLValueExpr lvalue){ return lemni::fromStdStrView(lvalue->id()); }

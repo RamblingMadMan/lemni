@@ -106,6 +106,14 @@ typedef struct {
 	};
 } LemniTypedFnExprType;
 
+/**
+ * @brief Destroy a typed expression previously created with a ``lemniCreateTyped*`` function.
+ * @warning this function should not be used on typed expressions created during typechecking.
+ * @param expr typed expression to destroy
+ */
+void lemniDestroyTypedExpr(LemniTypedExpr expr);
+
+LemniStr lemniTypedExprStr(LemniTypedExpr expr);
 LemniType lemniTypedExprType(LemniTypedExpr expr);
 
 LemniTypedUnaryOpExpr lemniCreateTypedUnaryOp(LemniUnaryOp op, LemniTypedExpr value);
@@ -174,11 +182,22 @@ LemniTypedNumExpr lemniTypedRatioExprBase(LemniTypedRatioExpr ratio);
 LemniRatioType lemniTypedRatioExprType(LemniTypedRatioExpr ratio);
 LemniARatioConst lemniTypedRatioExprValue(LemniTypedRatioExpr ratio);
 
-LemniTypedRealExpr lemniCreateTypedReal(LemniARealConst val);
 LemniTypedRealExpr lemniTypedNumExprAsReal(LemniTypedNumExpr num);
 LemniTypedNumExpr lemniTypedRealExprBase(LemniTypedRealExpr real);
 LemniRealType lemniTypedRealExprType(LemniTypedRealExpr real);
 LemniARealConst lemniTypedRealExprValue(LemniTypedRealExpr real);
+
+LemniTypedARealExpr lemniCreateTypedAReal(LemniARealConst val);
+LemniTypedRealExpr lemniTypedARealBase(LemniTypedARealExpr areal);
+LemniTypedExpr lemniTypedARealRoot(LemniTypedARealExpr real64);
+
+LemniTypedReal32Expr lemniCreateTypedReal32(LemniReal32 val);
+LemniTypedRealExpr lemniTypedReal32Base(LemniTypedReal32Expr real32);
+LemniTypedExpr lemniTypedReal32Root(LemniTypedReal32Expr real64);
+
+LemniTypedReal64Expr lemniCreateTypedReal64(LemniReal64 val);
+LemniTypedRealExpr lemniTypedReal64Base(LemniTypedReal64Expr real64);
+LemniTypedExpr lemniTypedReal64Root(LemniTypedReal64Expr real64);
 
 LemniTypedStringExpr lemniTypedConstantExprAsString(LemniTypedConstantExpr constant);
 LemniTypedConstantExpr lemniTypedStringExprBase(LemniTypedStringExpr str);
@@ -187,12 +206,14 @@ LemniType lemniTypedStringExprType(LemniTypedStringExpr str);
 LemniTypedStringASCIIExpr lemniCreateTypedStringASCII(LemniStr val);
 LemniTypedStringASCIIExpr lemniTypedStringExprAsASCII(LemniTypedStringExpr str);
 LemniTypedStringExpr lemniTypedStringASCIIExprBase(LemniTypedStringASCIIExpr ascii);
+LemniTypedExpr lemniTypedStringASCIIExprRoot(LemniTypedStringASCIIExpr utf8);
 LemniStringASCIIType lemniTypedStringASCIIExprType(LemniTypedStringASCIIExpr ascii);
 LemniStr lemniTypedStringASCIIExprValue(LemniTypedStringASCIIExpr ascii);
 
 LemniTypedStringUTF8Expr lemniCreateTypedStringUTF8(LemniStr val);
 LemniTypedStringUTF8Expr lemniTypedStringExprAsUTF8(LemniTypedStringExpr str);
 LemniTypedStringExpr lemniTypedStringUTF8ExprBase(LemniTypedStringUTF8Expr utf8);
+LemniTypedExpr lemniTypedStringUTF8ExprRoot(LemniTypedStringUTF8Expr utf8);
 LemniStringUTF8Type lemniTypedStringUTF8ExprType(LemniTypedStringUTF8Expr utf8);
 LemniStr lemniTypedStringUTF8ExprValue(LemniTypedStringUTF8Expr utf8);
 

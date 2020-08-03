@@ -97,6 +97,45 @@ LemniRatio128 lemniSimplifyRatio128(const LemniRatio128 q128);
 namespace lemni{
 	class AInt;
 	class ARatio;
+
+	template<typename T>
+	struct is_natural: std::integral_constant<bool,
+			std::is_same_v<T, LemniNat16> ||
+			std::is_same_v<T, LemniNat32> ||
+			std::is_same_v<T, LemniNat64>
+		>{};
+
+	template<typename T>
+	struct is_integer: std::integral_constant<bool,
+			std::is_same_v<T, LemniInt16> ||
+			std::is_same_v<T, LemniInt32> ||
+			std::is_same_v<T, LemniInt64>
+		>{};
+
+	template<typename T>
+	struct is_ratio: std::integral_constant<bool,
+			std::is_same_v<T, LemniRatio32> ||
+			std::is_same_v<T, LemniRatio64> ||
+			std::is_same_v<T, LemniRatio128>
+		>{};
+
+	template<typename T>
+	struct is_real: std::integral_constant<bool,
+			std::is_same_v<T, LemniReal32> ||
+			std::is_same_v<T, LemniReal64>
+		>{};
+
+	template<typename T>
+	constexpr auto is_natural_v = is_natural<T>::value;
+
+	template<typename T>
+	constexpr auto is_integer_v = is_integer<T>::value;
+
+	template<typename T>
+	constexpr auto is_ratio_v = is_ratio<T>::value;
+
+	template<typename T>
+	constexpr auto is_real_v = is_real<T>::value;
 }
 
 namespace lemni::interop{

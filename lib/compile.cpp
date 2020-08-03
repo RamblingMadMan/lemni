@@ -18,190 +18,19 @@
 
 #include <map>
 
-#include <libgccjit.h>
-
 #include "lemni/compile.h"
 
 #include "TypedExpr.hpp"
 
-struct LemniJitExprT{
-	gcc_jit_rvalue *handle;
-};
+#include "LLVM.hpp"
 
 struct LemniCompileStateT{
+	explicit LemniCompileStateT(LemniCompileState parent_ = nullptr)
+		: parent(parent_), llvmState("moduleId"){}
+
 	LemniCompileState parent;
-	gcc_jit_context *ctx;
-
-	std::map<LemniType, gcc_jit_type*> jitTypes;
-	std::map<LemniTypedFnDefExpr, gcc_jit_function*> jitFns;
+	lemni::LLVMState llvmState;
 };
-
-gcc_jit_type *lemniMakeGccjitType(LemniCompileState state, const LemniType type);
-
-gcc_jit_type *lemniFindGccjitType(LemniCompileState state, const LemniType type){
-	auto tyRes = state->jitTypes.find(type);
-	if(tyRes != end(state->jitTypes)) return tyRes->second;
-	else if(state->parent) return lemniFindGccjitType(state->parent, type);
-	else return nullptr;
-}
-
-gcc_jit_type *lemniGccjitType(LemniCompileState state, const LemniType type){
-	auto ty = lemniFindGccjitType(state, type);
-	if(ty) return ty;
-
-	ty = lemniMakeGccjitType(state, type);
-
-	state->jitTypes[type] = ty;
-
-	return ty;
-}
-
-gcc_jit_type *lemniMakeGccjitType(LemniCompileState state, const LemniType type){
-	if(lemniTypeAsUnit(type)){
-		 auto unitTStruct = gcc_jit_context_new_opaque_struct(state->ctx, nullptr, "UnitT");
-		 auto unitTTy = gcc_jit_type_get_const(gcc_jit_struct_as_type(unitTStruct));
-		 auto unitTy = gcc_jit_type_get_const(gcc_jit_type_get_pointer(unitTTy));
-		 return unitTy;
-	}
-	else if(lemniTypeAsNat(type)){
-		auto numBits = lemniTypeNumBits(type);
-
-		if((numBits == 0) || (numBits > 64)){
-			return nullptr;
-		}
-
-		auto numBytes = numBits / 8;
-		auto remBits = numBits % 8;
-
-		if(remBits > 0){
-			return nullptr;
-		}
-
-		return gcc_jit_context_get_int_type(state->ctx, numBytes, 0);
-	}
-	else if(lemniTypeAsInt(type)){
-		auto numBits = lemniTypeNumBits(type);
-
-		if((numBits == 0) || (numBits > 64)){
-			return nullptr;
-		}
-
-		auto numBytes = numBits / 8;
-		auto remBits = numBits % 8;
-
-		if(remBits > 0){
-			return nullptr;
-		}
-
-		return gcc_jit_context_get_int_type(state->ctx, numBytes, 1);
-	}
-	else if(lemniTypeAsRatio(type)){
-		auto numBits = lemniTypeNumBits(type);
-
-		if((numBits == 0) || (numBits > 128)){
-			return nullptr;
-		}
-
-		auto numBytes = numBits / 16;
-		auto remBits = numBits % 16;
-
-		if(remBits > 0){
-			return nullptr;
-		}
-
-		auto numTy = gcc_jit_context_get_int_type(state->ctx, numBytes, 1);
-		auto denTy = gcc_jit_context_get_int_type(state->ctx, numBytes, 0);
-
-		gcc_jit_type *fieldTys[2] = {numTy, denTy};
-		const char *fieldNames[2] = {"num", "den"};
-		gcc_jit_field *fields[2];
-
-		for(std::size_t i = 0; i < 2; i++){
-			fields[i] = gcc_jit_context_new_field(state->ctx, nullptr, fieldTys[i], fieldNames[i]);
-		}
-
-		auto typeName = "Ratio" + std::to_string(numBits);
-
-		auto ratioStruct = gcc_jit_context_new_struct_type(state->ctx, nullptr, typeName.c_str(), 2, fields);
-
-		return gcc_jit_struct_as_type(ratioStruct);
-	}
-	else if(lemniTypeAsReal(type)){
-		auto numBits = lemniTypeNumBits(type);
-
-		switch(numBits){
-			case 32: return gcc_jit_context_get_type(state->ctx, GCC_JIT_TYPE_FLOAT);
-			case 64: return gcc_jit_context_get_type(state->ctx, GCC_JIT_TYPE_DOUBLE);
-			default: return nullptr;
-		}
-	}
-	else if(lemniTypeAsStringUTF8(type)){
-		auto ptrTy = gcc_jit_context_get_type(state->ctx, GCC_JIT_TYPE_CONST_CHAR_PTR);
-		auto sizeTy = gcc_jit_context_get_type(state->ctx, GCC_JIT_TYPE_SIZE_T);
-
-		gcc_jit_type *fieldTys[2] = {ptrTy, sizeTy};
-		const char *fieldsNames[2] = {"ptr", "len"};
-		gcc_jit_field *fields[2];
-
-		for(std::size_t i = 0; i < 2; i++){
-			fields[i] = gcc_jit_context_new_field(state->ctx, nullptr, fieldTys[i], fieldsNames[i]);
-		}
-
-		auto strStruct = gcc_jit_context_new_struct_type(state->ctx, nullptr, "StringUTF8", 2, fields);
-
-		return gcc_jit_struct_as_type(strStruct);
-	}
-	else if(lemniTypeAsStringASCII(type)){
-		auto ptrTy = gcc_jit_context_get_type(state->ctx, GCC_JIT_TYPE_CONST_CHAR_PTR);
-		auto sizeTy = gcc_jit_context_get_type(state->ctx, GCC_JIT_TYPE_SIZE_T);
-
-		gcc_jit_type *fieldTys[2] = {ptrTy, sizeTy};
-		const char *fieldsNames[2] = {"ptr", "len"};
-		gcc_jit_field *fields[2];
-
-		for(std::size_t i = 0; i < 2; i++){
-			fields[i] = gcc_jit_context_new_field(state->ctx, nullptr, fieldTys[i], fieldsNames[i]);
-		}
-
-		auto strStruct = gcc_jit_context_new_struct_type(state->ctx, nullptr, "StringASCII", 2, fields);
-
-		return gcc_jit_struct_as_type(strStruct);
-	}
-	else if(auto prod = lemniTypeAsProduct(type)){
-		auto numComps = lemniProductTypeNumComponents(prod);
-
-		std::vector<gcc_jit_field*> fields;
-		fields.reserve(numComps);
-
-		for(std::uint32_t i = 0; i < numComps; i++){
-			auto comp = lemniProductTypeComponent(prod, i);
-			auto ty = lemniGccjitType(state, comp);
-			auto compName = "_" + std::to_string(i);
-			fields.emplace_back(gcc_jit_context_new_field(state->ctx, nullptr, ty, compName.c_str()));
-		}
-
-		auto prodMangled = lemni::toStdStr(lemniTypeMangled(type));
-		auto prodStruct = gcc_jit_context_new_struct_type(state->ctx, nullptr, prodMangled.c_str(), numComps, fields.data());
-
-		return gcc_jit_struct_as_type(prodStruct);
-	}
-	else if(auto fn = lemniTypeAsFunction(type)){
-		auto retTy = lemniGccjitType(state, lemniFunctionTypeResult(fn));
-		auto numParams = lemniFunctionTypeNumParams(fn);
-
-		std::vector<gcc_jit_type*> paramTypes;
-		paramTypes.reserve(numParams);
-
-		for(std::uint32_t i = 0; i < numParams; i++){
-			paramTypes.emplace_back(lemniGccjitType(state, lemniFunctionTypeParam(fn, i)));
-		}
-
-		return gcc_jit_context_new_function_ptr_type(state->ctx, nullptr, retTy, numParams, paramTypes.data(), 0);
-	}
-	else{
-		assert(!"type not representable");
-	}
-}
 
 struct LemniObjectT{
 	gcc_jit_result *res;
@@ -211,22 +40,12 @@ LemniCompileState lemniCreateCompileState(LemniCompileState parent){
 	auto mem = std::malloc(sizeof(LemniCompileStateT));
 	if(!mem) return nullptr;
 
-	auto p = new(mem) LemniCompileStateT;
-
-	p->parent = parent;
-	if(p->parent){
-		p->ctx = gcc_jit_context_new_child_context(parent->ctx);
-	}
-	else{
-		p->ctx = gcc_jit_context_acquire();
-	}
+	auto p = new(mem) LemniCompileStateT(parent);
 
 	return p;
 }
 
 void lemniDestroyCompileState(LemniCompileState state){
-	gcc_jit_context_release(state->ctx);
-
 	std::destroy_at(state);
 	std::free(state);
 }
@@ -244,17 +63,15 @@ namespace {
 	}
 }
 
-LemniCompileResult lemniCompile(LemniCompileState state, LemniTypedExpr *const exprs, const size_t numExprs){
+LemniCompileResult lemniCompile(LemniCompileState state, LemniTypedExpr *const exprs, const LemniNat64 numExprs){
 	LemniCompileResult res;
 
-	auto thisState = lemniCreateCompileState(state);
-
-	std::vector<gcc_jit_rvalue*> rvalues;
+	std::vector<llvm::Value*> rvalues;
 	rvalues.reserve(numExprs);
 
 	for(std::size_t i = 0; i < numExprs; i++){
 		auto expr = exprs[i];
-		auto jitRes = expr->compile(thisState);
+		auto jitRes = expr->compile(state);
 		if(jitRes.hasError){
 			res.hasError = true;
 			res.error.msg = jitRes.error.msg;
@@ -264,17 +81,8 @@ LemniCompileResult lemniCompile(LemniCompileState state, LemniTypedExpr *const e
 		rvalues.emplace_back(jitRes.rvalue);
 	}
 
-	auto result = gcc_jit_context_compile(thisState->ctx);
-	if(!result){
-		res.hasError = true;
-		res.error.msg = LEMNICSTR("error in gcc_jit_context_compile");
-		return res;
-	}
-
-	lemniDestroyCompileState(thisState);
-
 	res.hasError = false;
-	res.object = createObject(result);
+	//res.object = createObject(result);
 
 	return res;
 }
@@ -323,67 +131,141 @@ gcc_jit_comparison lemniGccjitComparison(LemniBinaryOp op){
 	}
 }
 
-LemniJitResult LemniTypedBinaryOpExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	auto lhsRes = this->lhs->compile(state, block);
+LemniJitResult LemniTypedBinaryOpExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	auto lhsRes = this->lhs->compile(state, ctx);
 	if(lhsRes.hasError) return lhsRes;
 
-	auto rhsRes = this->rhs->compile(state, block);
+	auto rhsRes = this->rhs->compile(state, ctx);
 	if(rhsRes.hasError) return rhsRes;
 
 	LemniJitResult ret;
 
 	ret.hasError = false;
 
-	if(lemniBinaryOpIsComparison(this->op)){
-		auto gccOp = lemniGccjitComparison(this->op);
-		ret.rvalue = gcc_jit_context_new_comparison(state->ctx, nullptr, gccOp, lhsRes.rvalue, rhsRes.rvalue);
-	}
-	else{
-		auto resTy = lemniGccjitType(state, this->type());
-		auto gccOp = lemniGccjitBinaryOp(this->op);
-		ret.rvalue = gcc_jit_context_new_binary_op(state->ctx, nullptr, gccOp, resTy, lhsRes.rvalue, rhsRes.rvalue);
-	}
+	switch(this->op){
+		case LEMNI_BINARY_ADD:{
+			ret.rvalue = ctx->builder->CreateAdd(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
 
-	return ret;
+		case LEMNI_BINARY_SUB:{
+			ret.rvalue = ctx->builder->CreateSub(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_MUL:{
+			ret.rvalue = ctx->builder->CreateMul(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_DIV:{
+			ret.rvalue = ctx->builder->CreateFDiv(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_MOD:{
+			ret.rvalue = ctx->builder->CreateSRem(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_POW:{
+			ret.hasError = true;
+			ret.error.msg = LEMNICSTR("power operator currently unimplemented");
+			return ret;
+		}
+
+		case LEMNI_BINARY_LT:{
+			ret.rvalue = ctx->builder->CreateFCmpOLT(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_GT:{
+			ret.rvalue = ctx->builder->CreateFCmpOGT(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_LTEQ:{
+			ret.rvalue = ctx->builder->CreateFCmpOLE(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_GTEQ:{
+			ret.rvalue = ctx->builder->CreateFCmpOGE(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_EQ:{
+			ret.rvalue = ctx->builder->CreateFCmpOEQ(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_NEQ:{
+			ret.rvalue = ctx->builder->CreateFCmpONE(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_AND:{
+			ret.rvalue = ctx->builder->CreateAnd(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_OR:{
+			ret.rvalue = ctx->builder->CreateOr(lhsRes.rvalue, rhsRes.rvalue);
+			return ret;
+		}
+
+		case LEMNI_BINARY_CONCAT:{
+			ret.hasError = true;
+			ret.error.msg = LEMNICSTR("concatenation operator unimplemented");
+			return ret;
+		}
+
+		default:{
+			ret.hasError = true;
+			ret.error.msg = LEMNICSTR("unsupported comparison operator");
+			return ret;
+		}
+	}
 }
 
-LemniJitResult LemniTypedBindingExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	auto rvalueRes = this->value->compile(state, block);
+LemniJitResult LemniTypedBindingExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	auto rvalueRes = this->value->compile(state, ctx);
 	if(rvalueRes.hasError) return rvalueRes;
 
 	auto rvalue = rvalueRes.rvalue;
 
-	auto ty = lemniGccjitType(state, this->type());
+	auto ty = lemniLLVMType(&state->llvmState, this->type());
 
 	auto name = std::string(this->id());
 
-	gcc_jit_lvalue *lvalue = nullptr;
+	llvm::Value *lvalue = nullptr;
 
-	if(block){
-		auto fn = gcc_jit_block_get_function(block);
-		lvalue = gcc_jit_function_new_local(fn, nullptr, ty, name.c_str());
-		gcc_jit_block_add_assignment(block, nullptr, lvalue, rvalue);
+	if(ctx){
+		auto allocInst = ctx->builder->CreateAlloca(ty);
+		ctx->builder->CreateStore(rvalue, allocInst);
+		lvalue = allocInst;
 	}
 	else{
-		lvalue = gcc_jit_context_new_global(state->ctx, nullptr, GCC_JIT_GLOBAL_INTERNAL, ty, name.c_str());
+		//state->llvmState.module;
+		//lvalue = gcc_jit_context_new_global(state->gccState.ctx, nullptr, GCC_JIT_GLOBAL_INTERNAL, ty, name.c_str());
 		// add to some global init block
 	}
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_lvalue_as_rvalue(lvalue);
+	res.rvalue = lvalue;
 	return res;
 }
 
-LemniJitResult LemniTypedApplicationExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	auto fnRes = this->fn->compile(state, block);
+LemniJitResult LemniTypedApplicationExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	auto fnRes = this->fn->compile(state, ctx);
 	if(fnRes.hasError) return fnRes;
 
-	std::vector<gcc_jit_rvalue*> argValues;
+	std::vector<llvm::Value*> argValues;
 	argValues.reserve(this->args.size());
 
 	for(std::size_t i = 0; i < args.size(); i++){
-		auto argRes = args[i]->compile(state, block);
+		auto argRes = args[i]->compile(state, ctx);
 		if(argRes.hasError) return argRes;
 
 		argValues.emplace_back(argRes.rvalue);
@@ -392,145 +274,161 @@ LemniJitResult LemniTypedApplicationExprT::compile(LemniCompileState state, gcc_
 	auto fnRvalue = fnRes.rvalue;
 
 	LemniJitResult res;
-	res.hasError = false;
-	res.rvalue = gcc_jit_context_new_call_through_ptr(state->ctx, nullptr, fnRvalue, argValues.size(), argValues.data());
+	res.hasError = true;
+	res.error.msg = LEMNICSTR("function application compilation unimplemented");
+	//res.rvalue = gcc_jit_context_new_call_through_ptr(state->gccState.ctx, nullptr, fnRvalue, argValues.size(), argValues.data());
 	return res;
 }
 
-LemniJitResult LemniTypedUnitExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedUnitExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto unitTy = lemniGccjitType(state, this->unitType);
+	auto unitT = llvm::StructType::get(state->llvmState.ctx, "UnitT");
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_context_null(state->ctx, unitTy);
+	res.rvalue = llvm::ConstantPointerNull::get(unitT->getPointerTo());
 	return res;
 }
 
-LemniJitResult LemniTypedBoolExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
-
-	auto boolTy = lemniGccjitType(state, this->boolType);
+LemniJitResult LemniTypedBoolExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = this->value ? gcc_jit_context_one(state->ctx, boolTy) : gcc_jit_context_zero(state->ctx, boolTy);
+	res.rvalue = value ? llvm::ConstantInt::getTrue(state->llvmState.ctx) : llvm::ConstantInt::getFalse(state->llvmState.ctx);
 	return res;
 }
 
-LemniJitResult LemniTypedNat16ExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedNat16ExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto natTy = gcc_jit_context_get_int_type(state->ctx, 2, 0);
+	auto natTy = llvm::Type::getIntNTy(state->llvmState.ctx, 16);
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_context_new_rvalue_from_int(state->ctx, natTy, value);
+	res.rvalue = llvm::ConstantInt::get(natTy, value);
 	return res;
 }
 
-LemniJitResult LemniTypedNat32ExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedNat32ExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto natTy = gcc_jit_context_get_int_type(state->ctx, 4, 0);
+	auto natTy = llvm::Type::getIntNTy(state->llvmState.ctx, 32);
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_context_new_rvalue_from_long(state->ctx, natTy, value);
+	res.rvalue = llvm::ConstantInt::get(natTy, value);
 	return res;
 }
 
-LemniJitResult LemniTypedNat64ExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedNat64ExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto natTy = gcc_jit_context_get_int_type(state->ctx, 8, 0);
+	auto natTy = llvm::Type::getIntNTy(state->llvmState.ctx, 64);
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_context_new_rvalue_from_long(state->ctx, natTy, value);
+	res.rvalue = llvm::ConstantInt::get(natTy, value);
 	return res;
 }
 
-LemniJitResult LemniTypedInt16ExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedInt16ExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto intTy = gcc_jit_context_get_int_type(state->ctx, 2, 1);
+	auto intTy = llvm::Type::getIntNTy(state->llvmState.ctx, 16);
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_context_new_rvalue_from_int(state->ctx, intTy, value);
+	res.rvalue = llvm::ConstantInt::get(intTy, *reinterpret_cast<const LemniNat16*>(&value), true);
 	return res;
 }
 
-LemniJitResult LemniTypedInt32ExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedInt32ExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto intTy = gcc_jit_context_get_int_type(state->ctx, 4, 1);
+	auto intTy = llvm::Type::getIntNTy(state->llvmState.ctx, 32);
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_context_new_rvalue_from_long(state->ctx, intTy, value);
+	res.rvalue = llvm::ConstantInt::get(intTy, *reinterpret_cast<const LemniNat32*>(&value), true);
 	return res;
 }
 
-LemniJitResult LemniTypedInt64ExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedInt64ExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto intTy = gcc_jit_context_get_int_type(state->ctx, 8, 1);
+	auto intTy = llvm::Type::getIntNTy(state->llvmState.ctx, 64);
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_context_new_rvalue_from_long(state->ctx, intTy, value);
+	res.rvalue = llvm::ConstantInt::get(intTy, *reinterpret_cast<const LemniNat64*>(&value), true);
 	return res;
 }
 
-LemniJitResult LemniTypedReal32ExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedReal32ExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto realTy = gcc_jit_context_get_type(state->ctx, GCC_JIT_TYPE_FLOAT);
+	auto realTy = llvm::Type::getFloatTy(state->llvmState.ctx);
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_context_new_rvalue_from_double(state->ctx, realTy, value);
+	res.rvalue = llvm::ConstantFP::get(realTy, value);
 	return res;
 }
 
-LemniJitResult LemniTypedReal64ExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedReal64ExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto realTy = gcc_jit_context_get_type(state->ctx, GCC_JIT_TYPE_DOUBLE);
+	auto realTy = llvm::Type::getDoubleTy(state->llvmState.ctx);
 
 	LemniJitResult res;
 	res.hasError = false;
-	res.rvalue = gcc_jit_context_new_rvalue_from_double(state->ctx, realTy, value);
+	res.rvalue = llvm::ConstantFP::get(realTy, value);
 	return res;
 }
 
-LemniJitResult LemniTypedProductExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	(void)block;
+LemniJitResult LemniTypedProductExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
 
-	auto prodTy = lemniGccjitType(state, this->productType);
+	auto prodTy = lemniLLVMType(&state->llvmState, this->productType);
+	auto structTy = llvm::dyn_cast<llvm::StructType>(prodTy);
 
 	(void)prodTy;
 
-	std::vector<gcc_jit_field*> fields;
-	std::vector<gcc_jit_rvalue*> rvalues;
-	fields.reserve(elems.size());
-	rvalues.reserve(elems.size());
+	llvm::Value *rvalue = nullptr;
 
-	for(std::size_t i = 0; i < elems.size(); i++){
-		auto elem = elems[i];
+	if(isConstant){
+		std::vector<llvm::Constant*> constants;
+		constants.reserve(elems.size());
 
-		auto res = elem->compile(state);
-		if(res.hasError) return res;
+		for(std::size_t i = 0; i < elems.size(); i++){
+			auto elem = elems[i];
 
-		auto ty = gcc_jit_rvalue_get_type(res.rvalue);
+			auto res = elem->compile(state);
+			if(res.hasError) return res;
 
-		auto fieldName = "_" + std::to_string(i);
+			auto constant = llvm::dyn_cast<llvm::Constant>(res.rvalue);
 
-		fields.emplace_back(gcc_jit_context_new_field(state->ctx, nullptr, ty, fieldName.c_str()));
-		rvalues.emplace_back(res.rvalue);
+			constants.emplace_back(constant);
+		}
+
+		rvalue = llvm::ConstantStruct::get(structTy, constants);
+	}
+	else{
+		std::vector<llvm::Value*> rvalues;
+		rvalues.reserve(elems.size());
+
+		for(std::size_t i = 0; i < elems.size(); i++){
+			auto elem = elems[i];
+
+			auto res = elem->compile(state);
+			if(res.hasError) return res;
+
+			rvalues.emplace_back(res.rvalue);
+		}
+
+		//auto allocInst = llvm::IRBuilder<>::CreateAlloca(prodTy);
 	}
 
 	LemniJitResult res;
@@ -539,33 +437,36 @@ LemniJitResult LemniTypedProductExprT::compile(LemniCompileState state, gcc_jit_
 	return res;
 }
 
-LemniJitResult LemniTypedBranchExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	auto condRes = cond->compile(state, block);
+LemniJitResult LemniTypedBranchExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	auto condRes = cond->compile(state, ctx);
 	if(condRes.hasError) return condRes;
 
-	auto fn = gcc_jit_block_get_function(block);
-
-	auto trueBlock = gcc_jit_function_new_block(fn, nullptr);
-	auto trueRes = true_->compile(state, trueBlock);
+	auto trueBlock = llvm::BasicBlock::Create(state->llvmState.ctx, "condT", ctx->fn);
+	auto trueBuilder = llvm::IRBuilder<>(trueBlock);
+	LemniCompileContextT trueCtx = *ctx;
+	trueCtx.builder = &trueBuilder;
+	auto trueRes = true_->compile(state, &trueCtx);
 	if(trueRes.hasError) return trueRes;
 
-	auto falseBlock = gcc_jit_function_new_block(fn, nullptr);
-	auto falseRes = false_->compile(state, falseBlock);
+	auto falseBlock = llvm::BasicBlock::Create(state->llvmState.ctx, "condF", ctx->fn);
+	auto falseBuilder = llvm::IRBuilder<>(falseBlock);
+	LemniCompileContextT falseCtx = *ctx;
+	falseCtx.builder = &falseBuilder;
+	auto falseRes = false_->compile(state, &falseCtx);
 	if(falseRes.hasError) return falseRes;
 
-	gcc_jit_block_end_with_conditional(block, nullptr, condRes.rvalue, trueBlock, falseBlock);
-
 	LemniJitResult res;
-	res.hasError = true;
-	res.error.msg = LEMNICSTR("conditional compilation unimplemented");
+	res.hasError = false;
+	res.rvalue = ctx->builder->CreateCondBr(condRes.rvalue, trueBlock, falseBlock);
 	return res;
 }
 
-LemniJitResult LemniTypedReturnExprT::compile(LemniCompileState state, gcc_jit_block *block) const noexcept{
-	auto valRes = this->value->compile(state, block);
+LemniJitResult LemniTypedReturnExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	auto valRes = value->compile(state, ctx);
 	if(valRes.hasError) return valRes;
 
-	gcc_jit_block_end_with_return(block, nullptr, valRes.rvalue);
-
-	return valRes;
+	LemniJitResult res;
+	res.hasError = false;
+	res.rvalue = ctx->builder->CreateRet(valRes.rvalue);
+	return res;
 }

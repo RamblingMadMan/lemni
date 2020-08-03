@@ -226,7 +226,18 @@ using LemniValueBool = const LemniValueBoolT*;
 
 struct LemniValueProductT: LemniValueT{
 	LemniValueProductT(const LemniValueConst *const values_, const LemniNat64 numValues_) noexcept
-		: values(values_, values_ + numValues_){}
+	{
+		values.reserve(numValues_);
+		for(LemniNat64 i = 0; i < numValues_; i++){
+			values.emplace_back(values_[i]->copy());
+		}
+	}
+
+	~LemniValueProductT(){
+		for(auto val : values){
+			lemniDestroyValue(val);
+		}
+	}
 
 	LemniValue copy() const noexcept override{
 		auto p = values.data();

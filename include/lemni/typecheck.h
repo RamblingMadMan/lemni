@@ -78,6 +78,19 @@ LemniModuleMap lemniTypecheckStateModuleMap(LemniTypecheckState state);
 LemniScope lemniTypecheckStateScope(LemniTypecheckStateConst state);
 
 /**
+ * @brief Evaluate \p expr optionally applied to \p args .
+ * The passed expression may be partially evaluated i.e. \p numArgs may be less than the number of params for \p expr .
+ * If \p numArgs is greater than the number of params in \p expr , ``NULL`` will be returned.
+ * Evaluating a non-function expressions expects ``0`` for \p numArgs and won't check \p args .
+ * @param state typechecking state to use
+ * @param expr expression to evaluate
+ * @param numArgs number of elements \p args points to
+ * @param args pointer to the arguments
+ * @returns result of the evaluation
+ */
+LemniTypecheckResult lemniTypecheckEval(LemniTypecheckState state, LemniTypedExpr expr, const LemniNat64 numArgs, LemniTypedExpr *const args);
+
+/**
  * @brief Create a module expression for typechecking to resolve from.
  * @param state typechecking state to modify
  * @param name alias for the new module

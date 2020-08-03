@@ -320,253 +320,261 @@ inline static constexpr bool typeHasUnaryOp(LemniTypeInfo info, const LemniUnary
 	return info.unaryOpFlags & op;
 }
 
-template<typename T>
-struct LemniTypeImplT: public LemniTypeT{
-	LemniTypeImplT(LemniType base_, LemniType abstract_, const uint32_t numBits_, const uint64_t typeInfoIdx_, std::string str_, std::string mangled_)
+template<typename TypeBase, typename Base, typename T, typename = void>
+struct LemniTypeBaseImplT;
+
+template<typename TypeBase, typename Base, typename T>
+struct LemniTypeBaseImplT<TypeBase, Base, T, std::enable_if_t<std::is_base_of_v<TypeBase, Base>>>: Base{
+	LemniTypeBaseImplT(LemniType base_, LemniType abstract_, const LemniNat32 numBits_, const LemniNat64 typeInfoIdx_, std::string str_, std::string mangled_)
 		: m_base(base_), m_abstract(abstract_), m_numBits(numBits_), m_typeInfoIdx(typeInfoIdx_), m_str(std::move(str_)), m_mangled(std::move(mangled_)){}
 
-	virtual ~LemniTypeImplT() = default;
+	virtual ~LemniTypeBaseImplT() = default;
 
 	virtual bool isSame(LemniType other) const noexcept override{
-		return (this == other) || (m_mangled == other->mangled());
+		return (this == other) || (m_mangled == lemni::toStdStrView(other->mangled()));
 	}
 
 	virtual bool isCastable(LemniType to) const noexcept override{
 		return (to == this) || lemniTypeAsPseudo(to);
 	}
 
-	std::string_view str() const noexcept override{ return m_str; }
-	std::string_view mangled() const noexcept override{ return m_mangled; }
+	LemniStr str() const noexcept override{ return lemni::fromStdStrView(m_str); }
+	LemniStr mangled() const noexcept override{ return lemni::fromStdStrView(m_mangled); }
 	LemniType base() const noexcept override{ return m_base; }
 	LemniType abstract() const noexcept override{ return m_abstract; }
-	uint32_t numBits() const noexcept override{ return m_numBits; }
-	uint64_t typeIdx() const noexcept override{ return m_typeInfoIdx; }
+	LemniNat32 numBits() const noexcept override{ return m_numBits; }
+	LemniNat64 typeIdx() const noexcept override{ return m_typeInfoIdx; }
 
 	LemniType m_base, m_abstract;
-	uint32_t m_numBits;
-	uint64_t m_typeInfoIdx;
+	LemniNat32 m_numBits;
+	LemniNat64 m_typeInfoIdx;
 	std::string m_str, m_mangled;
 };
 
-template<typename T>
-struct LemniCTypeImplT: public LemniCTypeT{
-	LemniCTypeImplT(LemniType base_, LemniType abstract_, const uint32_t numBits_, const uint64_t typeInfoIdx_, std::string str_, std::string mangled_)
-		: m_base(base_), m_abstract(abstract_), m_numBits(numBits_), m_typeInfoIdx(typeInfoIdx_), m_str(std::move(str_)), m_mangled(std::move(mangled_)){}
-
-	virtual ~LemniCTypeImplT() = default;
-
-	virtual bool isSame(LemniType other) const noexcept override{
-		return (this == other) || (m_mangled == other->mangled());
-	}
-
-	virtual bool isCastable(LemniType to) const noexcept override{
-		return (to == this) || lemniTypeAsPseudo(to);
-	}
-
-	std::string_view str() const noexcept override{ return m_str; }
-	std::string_view mangled() const noexcept override{ return m_mangled; }
-	LemniType base() const noexcept override{ return m_base; }
-	LemniType abstract() const noexcept override{ return m_abstract; }
-	uint32_t numBits() const noexcept override{ return m_numBits; }
-	uint64_t typeIdx() const noexcept override{ return m_typeInfoIdx; }
-
-	LemniType m_base, m_abstract;
-	uint32_t m_numBits;
-	uint64_t m_typeInfoIdx;
-	std::string m_str, m_mangled;
+template<typename Base, typename T>
+struct LemniTypeImplT: LemniTypeBaseImplT<LemniTypeT, Base, T>{
+	using LemniTypeBaseImplT<LemniTypeT, Base, T>::LemniTypeBaseImplT;
 };
 
-
-struct LemniTopTypeT: LemniTypeImplT<LemniTopTypeT>{
-	LemniTopTypeT(uint64_t typeInfoIdx_): LemniTypeImplT(this, this, 0, typeInfoIdx_, "Top", "@"){}
+template<typename Base, typename T>
+struct LemniCTypeImplT: LemniTypeBaseImplT<LemniCTypeT, Base, T>{
+	using LemniTypeBaseImplT<LemniCTypeT, Base, T>::LemniTypeBaseImplT;
 };
 
-struct LemniBottomTypeT: LemniTypeImplT<LemniBottomTypeT>{
-	LemniBottomTypeT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Bottom", "!"){}
+struct LemniTopTypeImplT: LemniTypeImplT<LemniTopTypeT, LemniTopTypeImplT>{
+	LemniTopTypeImplT(LemniNat64 typeInfoIdx_): LemniTypeImplT(this, this, 0, typeInfoIdx_, "Top", "@"){}
 };
 
-struct LemniModuleTypeT: LemniTypeImplT<LemniModuleTypeT>{
-	LemniModuleTypeT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Module", "#"){}
+struct LemniBottomTypeImplT: LemniTypeImplT<LemniBottomTypeT, LemniBottomTypeImplT>{
+	LemniBottomTypeImplT(LemniTopType top, const LemniNat64 typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Bottom", "!"){}
 };
 
-struct LemniPseudoTypeT: LemniTypeImplT<LemniPseudoTypeT>{
-	LemniPseudoTypeT(LemniTopType top, const uint64_t typeInfoIdx_, const uint64_t pseudoIdx)
+struct LemniModuleTypeImplT: LemniTypeImplT<LemniModuleTypeT, LemniModuleTypeImplT>{
+	LemniModuleTypeImplT(LemniTopType top, const LemniNat64 typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Module", "#"){}
+};
+
+struct LemniPseudoTypeImplT: LemniTypeImplT<LemniPseudoTypeT, LemniPseudoTypeImplT>{
+	LemniPseudoTypeImplT(LemniTopType top, const LemniNat64 typeInfoIdx_, const LemniNat64 pseudoIdx)
 		: LemniTypeImplT(top, this, 0, typeInfoIdx_, "Pseudo " + std::to_string(pseudoIdx), "?" + std::to_string(pseudoIdx)){}
 };
 
-struct LemniMetaTypeT: LemniTypeImplT<LemniMetaTypeT>{
-	LemniMetaTypeT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Type", "m0"){}
+struct LemniMetaTypeImplT: LemniTypeImplT<LemniMetaTypeT, LemniMetaTypeImplT>{
+	LemniMetaTypeImplT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Type", "m0"){}
 };
 
-struct LemniCPtrTypeT: LemniCTypeImplT<LemniCPtrTypeT>{
-	LemniCPtrTypeT(LemniTopType base_, LemniType pointed_, const uint64_t typeInfoIdx_)
-		: LemniCTypeImplT(base_, this, sizeof(void*) * __CHAR_BIT__, typeInfoIdx_, "Ptr " + std::string(pointed_->str()), "ip" + std::string(pointed_->mangled()))
+struct LemniCPtrTypeImplT: LemniCTypeImplT<LemniCPtrTypeT, LemniCPtrTypeImplT>{
+	LemniCPtrTypeImplT(LemniTopType base_, LemniType pointed_, const uint64_t typeInfoIdx_)
+		: LemniCTypeImplT(base_, this, sizeof(void*) * __CHAR_BIT__, typeInfoIdx_, "Ptr " + lemni::toStdStr(pointed_->str()), "ip" + lemni::toStdStr(pointed_->mangled()))
 		, pointed(pointed_)
 	{}
 
 	LemniType pointed;
 };
 
-struct LemniCConstTypeT: LemniCTypeImplT<LemniCConstTypeT>{
-	LemniCConstTypeT(LemniTopType base_, LemniType qualified_, const uint64_t typeInfoIdx_)
-		: LemniCTypeImplT(base_, this, qualified_->numBits(), typeInfoIdx_, "Const " + std::string(qualified_->str()), "ic" + std::string(qualified_->mangled()))
+struct LemniCConstTypeImplT: LemniCTypeImplT<LemniCConstTypeT, LemniCConstTypeImplT>{
+	LemniCConstTypeImplT(LemniTopType base_, LemniType qualified_, const uint64_t typeInfoIdx_)
+		: LemniCTypeImplT(base_, this, qualified_->numBits(), typeInfoIdx_, "Const " + lemni::toStdStr(qualified_->str()), "ic" + lemni::toStdStr(qualified_->mangled()))
 		, qualified(qualified_)
 	{}
 
 	LemniType qualified;
 };
 
-struct LemniCVoidTypeT: LemniCTypeImplT<LemniCVoidTypeT>{
-	LemniCVoidTypeT(LemniTopType base_, const uint64_t typeInfoIdx_)
+struct LemniCVoidTypeImplT: LemniCTypeImplT<LemniCVoidTypeT, LemniCVoidTypeImplT>{
+	LemniCVoidTypeImplT(LemniTopType base_, const uint64_t typeInfoIdx_)
 		: LemniCTypeImplT(base_, this, 0, typeInfoIdx_, "Void", "iv0"){}
 };
 
 
-struct LemniUnitTypeT: LemniTypeImplT<LemniUnitTypeT>{
-	explicit LemniUnitTypeT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Unit", "u0"){}
+struct LemniUnitTypeImplT: LemniTypeImplT<LemniUnitTypeT, LemniUnitTypeImplT>{
+	explicit LemniUnitTypeImplT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Unit", "u0"){}
 };
 
-struct LemniBoolTypeT: LemniTypeImplT<LemniBoolTypeT>{
-	explicit LemniBoolTypeT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 1, typeInfoIdx_, "Bool", "b8"){}
+struct LemniBoolTypeImplT: LemniTypeImplT<LemniBoolTypeT, LemniBoolTypeImplT>{
+	explicit LemniBoolTypeImplT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 1, typeInfoIdx_, "Bool", "b8"){}
 };
 
-struct LemniNumberTypeT: LemniTypeImplT<LemniNumberTypeT>{
-	explicit LemniNumberTypeT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Number", "x0"){}
+struct LemniNumberTypeImplT: LemniTypeImplT<LemniNumberTypeT, LemniNumberTypeImplT>{
+	explicit LemniNumberTypeImplT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "Number", "x0"){}
 };
 
-struct LemniRealTypeT: LemniTypeImplT<LemniRealTypeT>{
-	LemniRealTypeT(LemniNumberType base, LemniRealType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits)
+struct LemniRealTypeImplT: LemniTypeImplT<LemniRealTypeT, LemniRealTypeImplT>{
+	LemniRealTypeImplT(LemniNumberType base, LemniRealType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits)
 		: LemniTypeImplT(base, abstract, numBits, typeInfoIdx_, "Real" + (numBits > 0 ? std::to_string(numBits) : ""), "r" + std::to_string(numBits)){}
 
 	bool isCastable(LemniType to) const noexcept override;
 };
 
-struct LemniRatioTypeT: LemniTypeImplT<LemniRatioTypeT>{
-	LemniRatioTypeT(LemniRealType base, LemniRatioType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits)
+struct LemniRatioTypeImplT: LemniTypeImplT<LemniRatioTypeT, LemniRatioTypeImplT>{
+	LemniRatioTypeImplT(LemniRealType base, LemniRatioType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits)
 		: LemniTypeImplT(base, abstract, numBits, typeInfoIdx_, "Ratio" + (numBits > 0 ? std::to_string(numBits) : ""s), "q" + std::to_string(numBits)){}
 
 	bool isCastable(LemniType to) const noexcept override;
 };
 
-struct LemniIntTypeT: LemniTypeImplT<LemniIntTypeT>{
-	LemniIntTypeT(LemniRatioType base, LemniIntType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits)
+struct LemniIntTypeImplT: LemniTypeImplT<LemniIntTypeT, LemniIntTypeImplT>{
+	LemniIntTypeImplT(LemniRatioType base, LemniIntType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits)
 		: LemniTypeImplT(base, abstract, numBits, typeInfoIdx_, "Int" + (numBits > 0 ? std::to_string(numBits) : ""s), "z" + std::to_string(numBits)){}
 
 	bool isCastable(LemniType to) const noexcept override;
 };
 
-struct LemniNatTypeT: LemniTypeImplT<LemniNatTypeT>{
-	LemniNatTypeT(LemniIntType base, LemniNatType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits_)
+struct LemniNatTypeImplT: LemniTypeImplT<LemniNatTypeT, LemniNatTypeImplT>{
+	LemniNatTypeImplT(LemniIntType base, LemniNatType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits_)
 		: LemniTypeImplT(base, abstract, numBits_, typeInfoIdx_, "Nat" + (numBits_ > 0 ? std::to_string(numBits_) : ""s), "n" + std::to_string(numBits_)){}
 
 	bool isCastable(LemniType to) const noexcept override;
 };
 
-struct LemniStringTypeT: LemniTypeImplT<LemniStringTypeT>{
-	LemniStringTypeT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "String", "s0"){}
+struct LemniStringTypeImplT: LemniTypeImplT<LemniStringTypeT, LemniStringTypeImplT>{
+	LemniStringTypeImplT(LemniTopType top, const uint64_t typeInfoIdx_): LemniTypeImplT(top, this, 0, typeInfoIdx_, "String", "s0"){}
 };
 
-struct LemniStringASCIITypeT: LemniTypeImplT<LemniStringASCIITypeT>{
-	LemniStringASCIITypeT(LemniStringType str, const uint64_t typeInfoIdx_): LemniTypeImplT(str, this, 0, typeInfoIdx_, "StringASCII", "sa8"){}
+struct LemniStringASCIITypeImplT: LemniTypeImplT<LemniStringASCIITypeT, LemniStringASCIITypeImplT>{
+	LemniStringASCIITypeImplT(LemniStringType str, const uint64_t typeInfoIdx_): LemniTypeImplT(str, this, 0, typeInfoIdx_, "StringASCII", "sa8"){}
 
 	bool isCastable(LemniType to) const noexcept override;
 };
 
-struct LemniStringUTF8TypeT: LemniTypeImplT<LemniStringUTF8TypeT>{
-	explicit LemniStringUTF8TypeT(LemniStringASCIIType str, const uint64_t typeInfoIdx_): LemniTypeImplT(str, this, 0, typeInfoIdx_, "StringUTF8", "su8"){}
+struct LemniStringUTF8TypeImplT: LemniTypeImplT<LemniStringUTF8TypeT, LemniStringUTF8TypeImplT>{
+	explicit LemniStringUTF8TypeImplT(LemniStringASCIIType str, const uint64_t typeInfoIdx_): LemniTypeImplT(str, this, 0, typeInfoIdx_, "StringUTF8", "su8"){}
 
 	bool isCastable(LemniType to) const noexcept override;
 };
 
-struct LemniFunctionTypeT: LemniTypeImplT<LemniFunctionTypeT>{
-	LemniFunctionTypeT(LemniTopType base, const uint64_t typeInfoIdx_, LemniType result_, std::vector<LemniType> params_)
-		: LemniTypeImplT(base, this, 0, typeInfoIdx_, std::string(result_->str()), "f" + std::to_string(params_.size()) + std::string(result_->mangled()))
-		, result(result_), params(std::move(params_))
+struct LemniFunctionTypeImplT: LemniTypeImplT<LemniFunctionTypeT, LemniFunctionTypeImplT>{
+	LemniFunctionTypeImplT(LemniTopType base, const uint64_t typeInfoIdx_, LemniType result_, std::vector<LemniType> params_)
+		: LemniTypeImplT(base, this, 0, typeInfoIdx_, lemni::toStdStr(result_->str()), "f" + std::to_string(params_.size()) + lemni::toStdStr(result_->mangled()))
+		, m_result(result_), m_params(std::move(params_))
 	{
-		for(auto it = rbegin(params); it != rend(params); ++it){
-			m_str.insert(0, std::string((*it)->str()) + " -> ");
+		std::string mangledParams;
+
+		for(auto it = rbegin(m_params); it != rend(m_params); ++it){
+			mangledParams.insert(0, lemni::toStdStrView((*it)->mangled()));
+			m_str.insert(0, " -> ");
+			m_str.insert(0, lemni::toStdStrView((*it)->str()));
 		}
 
-		for(auto param : params){
-			m_mangled.append(param->mangled());
-		}
+		m_mangled.append(mangledParams);
 	}
 
 	//bool isCastable(LemniType to) const noexcept override;
 
-	LemniType result;
-	std::vector<LemniType> params;
+	LemniType result() const noexcept override{ return m_result; }
+	LemniNat64 numParams() const noexcept override{ return m_params.size(); }
+	LemniType param(const LemniNat64 idx) const noexcept override{ return m_params[idx]; }
+
+	LemniType m_result;
+	std::vector<LemniType> m_params;
 };
 
-struct LemniArrayTypeT: LemniTypeImplT<LemniArrayTypeT>{
-	LemniArrayTypeT(LemniTopType base, const uint64_t typeInfoIdx_, const uint64_t numElements_, LemniType elementType_)
-		: LemniTypeImplT(base, this, 0, typeInfoIdx_, "[" + (numElements_ > 0 ? std::to_string(numElements_) : "") + "]", "a" + std::to_string(numElements_) + std::string(elementType_->mangled()))
-		, numElements(numElements_), elementType(elementType_)
+struct LemniArrayTypeImplT: LemniTypeImplT<LemniArrayTypeT, LemniArrayTypeImplT>{
+	LemniArrayTypeImplT(LemniTopType base, const uint64_t typeInfoIdx_, const uint64_t numElements_, LemniType elementType_)
+		: LemniTypeImplT(base, this, 0, typeInfoIdx_, "[" + (numElements_ > 0 ? std::to_string(numElements_) : "") + "]", "a" + std::to_string(numElements_) + lemni::toStdStr(elementType_->mangled()))
+		, m_numElements(numElements_), m_elementType(elementType_)
 	{
-		m_str += elementType->str();
+		m_str += lemni::toStdStrView(m_elementType->str());
 	}
 
 	bool isCastable(LemniType to) const noexcept override;
 
-	const uint64_t numElements;
-	LemniType elementType;
+	LemniType element() const noexcept override{ return m_elementType; }
+	LemniNat64 numElements() const noexcept override{ return m_numElements; }
+
+	const uint64_t m_numElements;
+	LemniType m_elementType;
 };
 
-struct LemniClosureTypeT: LemniTypeImplT<LemniClosureTypeT>{
-	LemniClosureTypeT(LemniFunctionType base, const uint64_t typeInfoIdx_, std::vector<LemniType> closed_)
-		: LemniTypeImplT(base, this, 0, typeInfoIdx_, base->m_str, "g" + std::to_string(closed_.size()) + base->m_mangled)
-		, closed(std::move(closed_))
+struct LemniClosureTypeImplT: LemniTypeImplT<LemniClosureTypeT, LemniClosureTypeImplT>{
+	LemniClosureTypeImplT(LemniFunctionType base, const uint64_t typeInfoIdx_, std::vector<LemniType> closed_)
+		: LemniTypeImplT(base, this, 0, typeInfoIdx_, lemni::toStdStr(base->str()), "g" + std::to_string(closed_.size()) + lemni::toStdStr(base->mangled()))
+		, m_closed(std::move(closed_))
 	{
 		// TODO: add closure environment to type string
 	}
 
 	//bool isCastable(LemniType to) const noexcept override;
 
-	std::vector<LemniType> closed;
+	LemniFunctionType fn() const noexcept override{ return reinterpret_cast<LemniFunctionType>(m_base); }
+	LemniNat64 numClosed() const noexcept override{ return m_closed.size(); }
+	LemniType closed(const LemniNat64 idx) const noexcept override{ return m_closed[idx]; }
+
+	std::vector<LemniType> m_closed;
 };
 
-struct LemniSumTypeT: LemniTypeImplT<LemniSumTypeT>{
-	LemniSumTypeT(LemniTopType base, const uint64_t typeInfoIdx_, std::vector<LemniType> cases_)
-		: LemniTypeImplT(base, this, 0, typeInfoIdx_, std::string(cases_[0]->str()), "u" + std::to_string(cases_.size()) + std::string(cases_[0]->mangled()))
+struct LemniSumTypeImplT: LemniTypeImplT<LemniSumTypeT, LemniSumTypeImplT>{
+	LemniSumTypeImplT(LemniTopType base, const uint64_t typeInfoIdx_, std::vector<LemniType> cases_)
+		: LemniTypeImplT(base, this, 0, typeInfoIdx_, lemni::toStdStr(cases_[0]->str()), "u" + std::to_string(cases_.size()) + lemni::toStdStr(cases_[0]->mangled()))
 		, cases(std::move(cases_))
 	{
 		for(std::size_t i = 1; i < cases.size(); i++){
-			this->m_str += " | " + std::string(cases[i]->str());
-			this->m_mangled += cases[i]->mangled();
+			this->m_str += " | ";
+			this->m_str += lemni::toStdStrView(cases[i]->str());
+			this->m_mangled += lemni::toStdStrView(cases[i]->mangled());
 		}
 	}
+
+	LemniNat64 numCases() const noexcept override{ return cases.size(); }
+	LemniType case_(const LemniNat64 idx) const noexcept override{ return cases[idx]; }
 
 	std::vector<LemniType> cases;
 };
 
-struct LemniProductTypeT: LemniTypeImplT<LemniProductTypeT>{
-	LemniProductTypeT(LemniTopType base, const uint64_t typeInfoIdx_, std::vector<LemniType> components_)
-		: LemniTypeImplT(base, this, 0, typeInfoIdx_, std::string(components_[0]->str()), "t" + std::to_string(components_.size()) + std::string(components_[0]->mangled()))
+struct LemniProductTypeImplT: LemniTypeImplT<LemniProductTypeT, LemniProductTypeImplT>{
+	LemniProductTypeImplT(LemniTopType base, const uint64_t typeInfoIdx_, std::vector<LemniType> components_)
+		: LemniTypeImplT(base, this, 0, typeInfoIdx_, lemni::toStdStr(components_[0]->str()), "t" + std::to_string(components_.size()) + lemni::toStdStr(components_[0]->mangled()))
 		, components(std::move(components_))
 	{
 		for(std::size_t i = 1; i < components.size(); i++){
-			this->m_str += " & " + std::string(components[i]->str());
-			this->m_mangled += components[i]->mangled();
+			this->m_str += " & ";
+			this->m_str += lemni::toStdStrView(components[i]->str());
+			this->m_mangled += lemni::toStdStrView(components[i]->mangled());
 		}
 	}
 
 	bool isCastable(LemniType to) const noexcept override;
 
+	LemniNat64 numComponents() const noexcept override{ return components.size(); }
+	LemniType component(const LemniNat64 idx) const noexcept override{ return components[idx]; }
+
 	std::vector<LemniType> components;
 };
 
-struct LemniRecordTypeT: LemniTypeImplT<LemniRecordTypeT>{
-	LemniRecordTypeT(LemniTopType base, const uint64_t typeInfoIdx_, std::vector<LemniRecordTypeField> fields_)
+struct LemniRecordTypeImplT: LemniTypeImplT<LemniRecordTypeT, LemniRecordTypeImplT>{
+	LemniRecordTypeImplT(LemniTopType base, const uint64_t typeInfoIdx_, std::vector<LemniRecordTypeField> fields_)
 		: LemniTypeImplT(base, this, 0, typeInfoIdx_, "Record", "o" + std::to_string(fields_.size()))
 		, fields(std::move(fields_))
 	{
 		for(std::size_t i = 0; i < fields.size(); i++){
 			auto &&field = fields[i];
-			this->m_mangled += field.type->mangled();
+			this->m_mangled += lemni::toStdStrView(field.type->mangled());
 			this->m_mangled += std::to_string(field.name.len);
 			this->m_mangled += lemni::toStdStrView(field.name);
 		}
 	}
+
+	LemniNat64 numFields() const noexcept override{ return fields.size(); }
+	const LemniRecordTypeField *field(const LemniNat64 idx) const noexcept override{ return &fields[idx]; }
 
 	std::vector<LemniRecordTypeField> fields;
 };
