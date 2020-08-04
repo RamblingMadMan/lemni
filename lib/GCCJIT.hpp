@@ -34,6 +34,31 @@ namespace lemni{
 
 using LemniGCCJITState = lemni::GCCJITState*;
 
+inline gcc_jit_binary_op lemniGccjitBinaryOp(LemniBinaryOp op){
+	switch(op){
+		case LEMNI_BINARY_ADD: return GCC_JIT_BINARY_OP_PLUS;
+		case LEMNI_BINARY_SUB: return GCC_JIT_BINARY_OP_MINUS;
+		case LEMNI_BINARY_MUL: return GCC_JIT_BINARY_OP_MULT;
+		case LEMNI_BINARY_DIV: return GCC_JIT_BINARY_OP_DIVIDE;
+		case LEMNI_BINARY_MOD: return GCC_JIT_BINARY_OP_MODULO;
+		case LEMNI_BINARY_AND: return GCC_JIT_BINARY_OP_LOGICAL_AND;
+		case LEMNI_BINARY_OR: return GCC_JIT_BINARY_OP_LOGICAL_OR;
+		default: assert(!"binary op is not an arithmetic operator");
+	}
+}
+
+inline gcc_jit_comparison lemniGccjitComparison(LemniBinaryOp op){
+	switch(op){
+		case LEMNI_BINARY_EQ: return GCC_JIT_COMPARISON_EQ;
+		case LEMNI_BINARY_NEQ: return GCC_JIT_COMPARISON_NE;
+		case LEMNI_BINARY_LT: return GCC_JIT_COMPARISON_LT;
+		case LEMNI_BINARY_GT: return GCC_JIT_COMPARISON_GT;
+		case LEMNI_BINARY_LTEQ: return GCC_JIT_COMPARISON_LE;
+		case LEMNI_BINARY_GTEQ: return GCC_JIT_COMPARISON_GE;
+		default: assert(!"binary op is not a comparison operator");
+	}
+}
+
 gcc_jit_type *lemniMakeGccjitType(LemniGCCJITState state, const LemniType type);
 gcc_jit_type *lemniFindGccjitType(LemniGCCJITState state, const LemniType type);
 

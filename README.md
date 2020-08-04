@@ -79,8 +79,8 @@ To get a feel for the language try calling `replTut ()`.
 ## Lemni Example
 
 ```
-IO    = import "IO"
-Chars = import "Chars"
+import IO
+import Chars
 
 prompt(msg) =
 	IO.out msg
@@ -98,9 +98,8 @@ stripWs(name) =
 		name
 
 main() =
-	name = prompt "What's your name? "
-	name = stripWs name
-	name = capitalize name
+	action = capitalize . stripWs . prompt
+	name = action "What's your name? "
 	IO.outln ("Hello, " ++ name ++ "!")
 ``` 
 

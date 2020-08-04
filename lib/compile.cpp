@@ -33,7 +33,7 @@ struct LemniCompileStateT{
 };
 
 struct LemniObjectT{
-	gcc_jit_result *res;
+	//gcc_jit_result *res;
 };
 
 LemniCompileState lemniCreateCompileState(LemniCompileState parent){
@@ -51,13 +51,13 @@ void lemniDestroyCompileState(LemniCompileState state){
 }
 
 namespace {
-	LemniObject createObject(gcc_jit_result *result){
+	LemniObject createObject(){
 		auto mem = std::malloc(sizeof(LemniObjectT));
 		if(!mem) return nullptr;
 
 		auto ptr = new(mem) LemniObjectT;
 
-		ptr->res = result;
+		//ptr->res = result;
 
 		return ptr;
 	}
@@ -88,7 +88,7 @@ LemniCompileResult lemniCompile(LemniCompileState state, LemniTypedExpr *const e
 }
 
 void lemniDestroyObject(LemniObject obj){
-	gcc_jit_result_release(obj->res);
+	//gcc_jit_result_release(obj->res);
 
 	std::destroy_at(obj);
 	std::free(obj);
@@ -96,39 +96,8 @@ void lemniDestroyObject(LemniObject obj){
 
 LemniFn lemniObjectFunction(LemniObject obj, const LemniStr mangledName){
 	auto funcName = lemni::toStdStr(mangledName);
-	auto ret = gcc_jit_result_get_code(obj->res, funcName.c_str());
-	return reinterpret_cast<LemniFn>(ret);
-}
-
-/*
- *
- *  Type expression compilation implementation
- *
- */
-
-gcc_jit_binary_op lemniGccjitBinaryOp(LemniBinaryOp op){
-	switch(op){
-		case LEMNI_BINARY_ADD: return GCC_JIT_BINARY_OP_PLUS;
-		case LEMNI_BINARY_SUB: return GCC_JIT_BINARY_OP_MINUS;
-		case LEMNI_BINARY_MUL: return GCC_JIT_BINARY_OP_MULT;
-		case LEMNI_BINARY_DIV: return GCC_JIT_BINARY_OP_DIVIDE;
-		case LEMNI_BINARY_MOD: return GCC_JIT_BINARY_OP_MODULO;
-		case LEMNI_BINARY_AND: return GCC_JIT_BINARY_OP_LOGICAL_AND;
-		case LEMNI_BINARY_OR: return GCC_JIT_BINARY_OP_LOGICAL_OR;
-		default: assert(!"binary op is not an arithmetic operator");
-	}
-}
-
-gcc_jit_comparison lemniGccjitComparison(LemniBinaryOp op){
-	switch(op){
-		case LEMNI_BINARY_EQ: return GCC_JIT_COMPARISON_EQ;
-		case LEMNI_BINARY_NEQ: return GCC_JIT_COMPARISON_NE;
-		case LEMNI_BINARY_LT: return GCC_JIT_COMPARISON_LT;
-		case LEMNI_BINARY_GT: return GCC_JIT_COMPARISON_GT;
-		case LEMNI_BINARY_LTEQ: return GCC_JIT_COMPARISON_LE;
-		case LEMNI_BINARY_GTEQ: return GCC_JIT_COMPARISON_GE;
-		default: assert(!"binary op is not a comparison operator");
-	}
+	//auto ret = gcc_jit_result_get_code(obj->res, funcName.c_str());
+	return nullptr;
 }
 
 LemniJitResult LemniTypedBinaryOpExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{

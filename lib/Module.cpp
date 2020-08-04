@@ -28,10 +28,6 @@ LEMNI_OPAQUE_T_DEF(LemniModuleMap){
 };
 
 LEMNI_OPAQUE_T_DEF(LemniRuntime){
-	gcc_jit_context *gccCtx;
-	std::map<LemniType, gcc_jit_type*> gccTypes;
-	std::vector<gcc_jit_rvalue*> gccExprs;
-	gcc_jit_result *gccRes;
 };
 
 LemniModule lemniCreateModule(LemniModuleMap mods, const LemniStr id){

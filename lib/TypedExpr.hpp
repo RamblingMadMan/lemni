@@ -22,7 +22,7 @@
 #include <map>
 
 #include <ffi.h>
-#include <libgccjit.h>
+
 #include "llvm/IR/Value.h"
 #include "llvm/IR/IRBuilder.h"
 
