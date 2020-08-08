@@ -40,16 +40,18 @@
 
 LEMNI_OPAQUE_T(LemniEvalBindings);
 
-template<typename ExprT, typename ... Args>
-inline ExprT *newTypedExpr(Args &&... args){
-	auto mem = std::malloc(sizeof(ExprT));
-	if(!mem) return nullptr;
-	return new(mem) ExprT(std::forward<Args>(args)...);
-}
+namespace {
+	template<typename ExprT, typename ... Args>
+	inline ExprT *newTypedExpr(Args &&... args) noexcept(noexcept(ExprT(std::forward<Args>(args)...))){
+		auto mem = std::malloc(sizeof(ExprT));
+		if(!mem) return nullptr;
+		return new(mem) ExprT(std::forward<Args>(args)...);
+	}
 
-inline void deleteTypedExpr(LemniTypedExpr expr){
-	std::destroy_at(expr);
-	std::free(const_cast<LemniTypedExprT*>(expr)); // ew, plz C
+	inline void deleteTypedExpr(LemniTypedExpr expr) noexcept{
+		std::destroy_at(expr);
+		std::free(const_cast<LemniTypedExprT*>(expr)); // ew, plz C
+	}
 }
 
 typedef struct LemniJitErrorT{
@@ -140,6 +142,8 @@ struct LemniTypedExprT{
 		return { .ptr = nullptr, .len = 0 };
 	}
 
+	virtual LemniTypedExpr deref() const noexcept{ return this; }
+
 	virtual LemniTypecheckResult partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept;
 
 	virtual LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept = 0;
@@ -156,6 +160,51 @@ struct LemniTypedExprT{
 
 struct LemniTypedLiteralExprT: LemniTypedExprT{};
 
+struct LemniTypedMacroExprT: LemniTypedLiteralExprT{
+	LemniTypedMacroExprT(LemniExprType exprType_, std::vector<LemniExpr> exprs_) noexcept
+		: exprType(exprType_), exprs(std::move(exprs_)){}
+
+	LemniTypedMacroExpr clone() const noexcept override{
+		return newTypedExpr<LemniTypedMacroExprT>(exprType, exprs);
+	}
+
+	LemniExprType type() const noexcept override{ return exprType; }
+
+	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override{
+		(void)state;
+		(void)bindings;
+		LemniEvalResult res;
+		res.hasError = true;
+		res.error.msg = LEMNICSTR("macro expression evaluation unimplemented");
+		return res;
+	}
+
+	LemniExprType exprType;
+	std::vector<LemniExpr> exprs;
+};
+
+struct LemniTypedPlaceholderExprT: LemniTypedLiteralExprT{
+	LemniTypedPlaceholderExprT(LemniPseudoType pseudoType_) noexcept
+		: pseudoType(pseudoType_){}
+
+	LemniTypedPlaceholderExpr clone() const noexcept  override{
+		return newTypedExpr<LemniTypedPlaceholderExprT>(pseudoType);
+	}
+
+	LemniPseudoType type() const noexcept override{ return pseudoType; }
+
+	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override{
+		(void)state;
+		(void)bindings;
+		LemniEvalResult res;
+		res.hasError = true;
+		res.error.msg = LEMNICSTR("can not evaluate placeholder expression");
+		return res;
+	}
+
+	LemniPseudoType pseudoType;
+};
+
 struct LemniTypedConstantExprT: LemniTypedLiteralExprT{};
 
 struct LemniTypedModuleExprT: LemniTypedConstantExprT{
@@ -163,7 +212,7 @@ struct LemniTypedModuleExprT: LemniTypedConstantExprT{
 		: moduleType(moduleType_), module(module_)
 	{}
 
-	LemniTypedExpr clone() const noexcept  override{
+	LemniTypedModuleExpr clone() const noexcept override{
 		return newTypedExpr<LemniTypedModuleExprT>(moduleType, module);
 	}
 
@@ -212,6 +261,8 @@ struct LemniTypedBinaryOpExprT: LemniTypedExprT{
 
 	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedBinaryOpExprT>(resultType, op, lhs, rhs); }
 
+	LemniTypecheckResult partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept override;
+
 	LemniType type() const noexcept override{ return resultType; }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
@@ -238,6 +289,8 @@ struct LemniTypedUnresolvedRefExprT: LemniTypedLValueExprT{
 
 	LemniType type() const noexcept override{ return valueType; }
 
+	LemniTypecheckResult partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept override;
+
 	LemniEvalResult eval(LemniEvalState, LemniEvalBindings) const noexcept override{
 		LemniEvalResult res;
 		res.hasError = true;
@@ -258,6 +311,12 @@ struct LemniTypedRefExprT: LemniTypedLValueExprT{
 	std::string_view id() const noexcept override{ return refed->id(); }
 
 	LemniType type() const noexcept override{ return refed->type(); }
+
+	LemniTypedExpr deref() const noexcept override{ return refed->deref(); }
+
+	LemniTypecheckResult partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept override{
+		return refed->partialEval(state, bindings, numArgs, args);
+	}
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override{
 		return refed->eval(state, bindings);
@@ -299,6 +358,8 @@ struct LemniTypedApplicationExprT: LemniTypedExprT{
 	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedApplicationExprT>(resultType, fn, args); }
 
 	LemniType type() const noexcept override{ return resultType; }
+
+	LemniTypecheckResult partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args_) const noexcept override;
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
@@ -434,6 +495,9 @@ struct LemniTypedUnitExprT: LemniTypedConstantExprT{
 
 struct LemniTypedBoolExprT: LemniTypedConstantExprT{
 	LemniTypedBoolExprT(LemniBoolType boolType_, const bool value_) noexcept
+		: boolType(boolType_), value(value_ ? LEMNI_TRUE : LEMNI_FALSE){}
+
+	LemniTypedBoolExprT(LemniBoolType boolType_, const LemniBool value_) noexcept
 		: boolType(boolType_), value(value_){}
 
 	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedBoolExprT>(boolType, value); }
@@ -445,7 +509,7 @@ struct LemniTypedBoolExprT: LemniTypedConstantExprT{
 	LemniJitResult compile(LemniCompileState state, LemniCompileContext ctx) const noexcept override;
 
 	LemniBoolType boolType;
-	const bool value;
+	const LemniBool value;
 };
 
 struct LemniTypedNumExprT: LemniTypedConstantExprT{};
@@ -463,18 +527,35 @@ struct LemniTypedANatExprT: LemniTypedNatExprT{
 	LemniTypedANatExprT(LemniNatType natType_, lemni::AInt value_) noexcept
 		: LemniTypedNatExprT(natType_), value(std::move(value_)){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedANatExprT>(natType, value); }
+	LemniTypedANatExpr clone() const noexcept override{ return newTypedExpr<LemniTypedANatExprT>(natType, value); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
 	lemni::AInt value;
 };
 
+struct LemniTypedNatNExprT: LemniTypedNatExprT{
+	LemniTypedNatNExprT(LemniNatType natType_, LemniNat64 numBits_, std::vector<LemniNat64> bits_) noexcept
+		: LemniTypedNatExprT(natType_), numBits(numBits_), bits(std::move(bits_)){}
+
+	LemniTypedNatNExprT(LemniNatType natType_, LemniNat64 numBits_, LemniNat64 bits_) noexcept
+		: LemniTypedNatExprT(natType_), numBits(numBits_), bits{ bits_ }{}
+
+	LemniTypedNatExpr clone() const noexcept override{ return newTypedExpr<LemniTypedNatNExprT>(natType, numBits, bits); }
+
+	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, LemniCompileContext ctx) const noexcept override;
+
+	LemniNat64 numBits;
+	std::vector<LemniNat64> bits;
+};
+
 struct LemniTypedNat16ExprT: LemniTypedNatExprT{
 	LemniTypedNat16ExprT(LemniNatType nat16Type_, LemniNat16 value_) noexcept
 		: LemniTypedNatExprT(nat16Type_), value(value_){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedNat16ExprT>(natType, value); }
+	LemniTypedNat16Expr clone() const noexcept override{ return newTypedExpr<LemniTypedNat16ExprT>(natType, value); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
@@ -487,7 +568,7 @@ struct LemniTypedNat32ExprT: LemniTypedNatExprT{
 	LemniTypedNat32ExprT(LemniNatType nat32Type_, LemniNat32 value_) noexcept
 		: LemniTypedNatExprT(nat32Type_), value(value_){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedNat32ExprT>(natType, value); }
+	LemniTypedNat32Expr clone() const noexcept override{ return newTypedExpr<LemniTypedNat32ExprT>(natType, value); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
@@ -500,7 +581,7 @@ struct LemniTypedNat64ExprT: LemniTypedNatExprT{
 	LemniTypedNat64ExprT(LemniNatType nat64Type_, LemniNat64 value_) noexcept
 		: LemniTypedNatExprT(nat64Type_), value(value_){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedNat64ExprT>(natType, value); }
+	LemniTypedNat64Expr clone() const noexcept override{ return newTypedExpr<LemniTypedNat64ExprT>(natType, value); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
@@ -522,18 +603,37 @@ struct LemniTypedAIntExprT: LemniTypedIntExprT{
 	LemniTypedAIntExprT(LemniIntType intType_, lemni::AInt value_) noexcept
 		: LemniTypedIntExprT(intType_), value(std::move(value_)){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedAIntExprT>(intType, value); }
+	LemniTypedAIntExpr clone() const noexcept override{ return newTypedExpr<LemniTypedAIntExprT>(intType, value); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
+	//LemniJitResult compile(LemniCompileState state, LemniCompileContext ctx) const noexcept override;
+
 	lemni::AInt value;
+};
+
+struct LemniTypedIntNExprT: LemniTypedIntExprT{
+	LemniTypedIntNExprT(LemniIntType intType_, LemniNat64 numBits_, std::vector<LemniNat64> bits_) noexcept
+		: LemniTypedIntExprT(intType_), numBits(numBits_), bits(std::move(bits_)){}
+
+	LemniTypedIntNExprT(LemniIntType intType_, LemniNat64 numBits_, LemniNat64 bits_) noexcept
+		: LemniTypedIntExprT(intType_), numBits(numBits_), bits{ bits_ }{}
+
+	LemniTypedIntExpr clone() const noexcept override{ return newTypedExpr<LemniTypedIntNExprT>(intType, numBits, bits); }
+
+	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, LemniCompileContext ctx) const noexcept override;
+
+	LemniNat64 numBits;
+	std::vector<LemniNat64> bits;
 };
 
 struct LemniTypedInt16ExprT: LemniTypedIntExprT{
 	LemniTypedInt16ExprT(LemniIntType intType_, LemniInt16 value_) noexcept
 		: LemniTypedIntExprT(intType_), value(std::move(value_)){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedInt16ExprT>(intType, value); }
+	LemniTypedInt16Expr clone() const noexcept override{ return newTypedExpr<LemniTypedInt16ExprT>(intType, value); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
@@ -546,7 +646,7 @@ struct LemniTypedInt32ExprT: LemniTypedIntExprT{
 	LemniTypedInt32ExprT(LemniIntType intType_, LemniInt32 value_) noexcept
 		: LemniTypedIntExprT(intType_), value(std::move(value_)){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedInt32ExprT>(intType, value); }
+	LemniTypedInt32Expr clone() const noexcept override{ return newTypedExpr<LemniTypedInt32ExprT>(intType, value); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
@@ -559,7 +659,7 @@ struct LemniTypedInt64ExprT: LemniTypedIntExprT{
 	LemniTypedInt64ExprT(LemniIntType intType_, LemniInt64 value_) noexcept
 		: LemniTypedIntExprT(intType_), value(std::move(value_)){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedInt64ExprT>(intType, value); }
+	LemniTypedInt64Expr clone() const noexcept override{ return newTypedExpr<LemniTypedInt64ExprT>(intType, value); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
@@ -581,7 +681,7 @@ struct LemniTypedARatioExprT: LemniTypedRatioExprT{
 	LemniTypedARatioExprT(LemniRatioType ratioType_, lemni::ARatio value_) noexcept
 		: LemniTypedRatioExprT(ratioType_), value(std::move(value_)){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedARatioExprT>(ratioType, value); }
+	LemniTypedARatioExpr clone() const noexcept override{ return newTypedExpr<LemniTypedARatioExprT>(ratioType, value); }
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
@@ -842,6 +942,8 @@ struct LemniTypedExtFnDeclExprT: LemniTypedNamedExprT{
 	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedExtFnDeclExprT>(fnType, m_id, ptr, paramNames); }
 
 	LemniFunctionType type() const noexcept override{ return fnType; }
+
+	LemniTypecheckResult partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept override;
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 

@@ -41,8 +41,9 @@ extern "C" {
 typedef const struct LemniTypeT *LemniType;
 
 typedef const struct LemniPseudoTypeT *LemniPseudoType;
-typedef const struct LemniErrorTypeT *LemniErrorType;
+typedef const struct LemniExprTypeT *LemniExprType;
 typedef const struct LemniModuleTypeT *LemniModuleType;
+typedef const struct LemniErrorTypeT *LemniErrorType;
 
 typedef const struct LemniTopTypeT *LemniTopType;
 typedef const struct LemniBottomTypeT *LemniBottomType;
@@ -106,6 +107,7 @@ struct LemniTypeT{
 struct LemniPseudoTypeT: LemniTypeT{};
 struct LemniErrorTypeT: LemniTypeT{};
 struct LemniModuleTypeT: LemniTypeT{};
+struct LemniExprTypeT: LemniTypeT{};
 
 struct LemniTopTypeT: LemniTypeT{};
 struct LemniBottomTypeT: LemniTypeT{};
@@ -167,26 +169,42 @@ struct LemniRecordTypeT: LemniTypeT{
 };
 #endif
 
-LEMNI_BITFLAG_ENUM_T(LemniTypeClass, LEMNI_TYPECLASS,
-	EMPTY,
-	META,
-	PSEUDO,
-	MODULE,
-	SCALAR,
-	CALLABLE,
-	SUM,
-	PRODUCT,
-	RECORD,
-	SIGMA,
-	TOP,
-	BOTTOM
-);
+typedef enum LemniTypeClassT{
+	LEMNI_BITFLAG_ENUM_BASE(LEMNI_TYPECLASS),
 
-LEMNI_BITFLAG_ENUM_T(LemniScalarTrait, LEMNI_SCALAR,
-	UNIT, RANGE, TEXTUAL,
-	BOOL, NAT, INT, RATIO, REAL,
-	ASCII, UTF8
-);
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, EMPTY),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, META),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, PSEUDO),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, EXPR),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, MODULE),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, SCALAR),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, CALLABLE),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, SUM),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, PRODUCT),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, RECORD),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, SIGMA),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, TOP),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_TYPECLASS, BOTTOM),
+
+	LEMNI_BITFLAG_ENUM_COUNT(LEMNI_TYPECLASS)
+} LemniTypeClass;
+
+typedef enum LemniScalarTraitT{
+	LEMNI_BITFLAG_ENUM_BASE(LEMNI_SCALAR),
+
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, UNIT),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, RANGE),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, TEXTUAL),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, BOOL),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, NAT),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, INT),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, RATIO),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, REAL),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, ASCII),
+	LEMNI_BITFLAG_ENUM_CASE(LEMNI_SCALAR, UTF8),
+
+	LEMNI_BITFLAG_ENUM_COUNT(LEMNI_SCALAR)
+} LemniScalarTrait;
 
 struct LemniTypeInfoT;
 
@@ -270,6 +288,10 @@ LemniType lemniTopAsType(LemniTopType top);
 LemniBottomType lemniTypeAsBottom(LemniType type);
 LemniTopType lemniBottomTypeBase(LemniBottomType bottom);
 LemniType lemniBottomAsType(LemniBottomType bottom);
+
+LemniExprType lemniTypeAsExpr(LemniType type);
+LemniTopType lemniExprTypeBase(LemniExprType expr);
+LemniType lemniExprAsType(LemniExprType expr);
 
 LemniErrorType lemniTypeAsError(LemniType type);
 LemniTopType lemniErrorTypeBase(LemniErrorType error);
@@ -454,6 +476,13 @@ LemniModuleType lemniTypeSetGetModule(LemniTypeSet types);
  * @returns new pseudo type
  */
 LemniPseudoType lemniTypeSetGetPseudo(LemniTypeSet types, const LemniTypeInfo usageInfo);
+
+/**
+ * @brief Get the macro expression type.
+ * @param types type set to query
+ * @returns expression type
+ */
+LemniExprType lemniTypeSetGetExpr(LemniTypeSet types);
 
 /**
  * @brief Get the meta type.

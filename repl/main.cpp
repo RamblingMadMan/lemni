@@ -48,6 +48,14 @@ void lemniHighlightCb(std::string const& input, replxx::Replxx::colors_t& colors
 
 		auto tok = std::get_if<LemniToken>(&res);
 		switch(tok->type){
+			case LEMNI_TOKEN_COMMENT_LINE:{
+				for(std::size_t i = 0; i < tok->text.len; i++){
+					colors[cpIdx] = replxx::Replxx::Color::LIGHTGRAY;
+					++cpIdx;
+				}
+				break;
+			}
+
 			case LEMNI_TOKEN_ID:{
 				for(std::size_t i = 0; i < tok->text.len; i++){
 					colors[cpIdx] = replxx::Replxx::Color::BRIGHTCYAN;
@@ -58,7 +66,7 @@ void lemniHighlightCb(std::string const& input, replxx::Replxx::colors_t& colors
 
 			case LEMNI_TOKEN_OCTAL:
 			case LEMNI_TOKEN_HEX:
-			case LEMNI_TOKEN_NAT:
+			case LEMNI_TOKEN_INT:
 			case LEMNI_TOKEN_BINARY:
 			case LEMNI_TOKEN_REAL:{
 				for(std::size_t i = 0; i < tok->text.len; i++){
@@ -194,7 +202,7 @@ int main(int argc, char *argv[]){
 			auto path = fs::path(argv[++i]);
 			if(!fs::exists(path) || !fs::is_regular_file(path)){
 				fmt::print(stderr, "File '{}' does not exist or is not a regular file\n", path.c_str());
-				return -2;
+				return -1;
 			}
 
 			paths.emplace_back(path);
@@ -214,20 +222,6 @@ int main(int argc, char *argv[]){
 	auto typeState = lemni::TypecheckState(mods);
 	auto evalState = lemni::EvalState(types);
 
-	auto bottomType = types.bottom();
-	auto bottomTypeT = lemniBottomAsType(bottomType);
-	auto unitType = types.unit();
-	auto unitTypeT = lemniUnitAsType(unitType);
-	auto boolType = types.bool_();
-	auto boolTypeT = lemniBoolAsType(boolType);
-	auto paramName = LEMNICSTR("doShow");
-
-	auto replModule = lemni::Module(mods, LEMNICSTR("Repl"));
-
-	replxx::Replxx repl;
-
-	repl.clear_screen();
-
 	for(auto &&p : paths){
 		std::ifstream file(p);
 		std::string src, tmp;
@@ -242,7 +236,7 @@ int main(int argc, char *argv[]){
 					fmt::print(stderr, "Error lexing file '{}'@{}.{}: {}\n",
 						p.c_str(), err.loc.line, err.loc.col, lemni::toStdStrView(err.msg));
 
-					std::exit(-3);
+					std::exit(-2);
 				}
 			},
 			lexed
@@ -252,7 +246,7 @@ int main(int argc, char *argv[]){
 		auto exprs = std::visit(
 			Overload{
 				[&](std::vector<lemni::Expr> exprs){ return exprs; },
-				[&](LemniParseError err) -> std::vector<lemni::Expr>{
+				[&](LemniParseResultError err) -> std::vector<lemni::Expr>{
 					fmt::print(stderr, "Error parsing file '{}'@{}.{}: {}\n",
 						p.c_str(), err.loc.line, err.loc.col, lemni::toStdStrView(err.msg));
 
@@ -270,7 +264,7 @@ int main(int argc, char *argv[]){
 					fmt::print(stderr, "Error typechecking file '{}'@{}.{}: {}\n",
 						p.c_str(), err.loc.line, err.loc.col, lemni::toStdStrView(err.msg));
 
-					std::exit(-3);
+					std::exit(-4);
 				}
 			},
 			typed
@@ -286,7 +280,7 @@ int main(int argc, char *argv[]){
 					fmt::print(stderr, "Error lexing expression '{}': {}\n",
 						expr, lemni::toStdStrView(err.msg));
 
-					std::exit(-4);
+					std::exit(-2);
 				}
 			},
 			lexed
@@ -296,11 +290,11 @@ int main(int argc, char *argv[]){
 		auto exprs = std::visit(
 			Overload{
 				[&](auto v){ return v; },
-				[&](LemniParseError err) -> std::vector<lemni::Expr>{
+				[&](LemniParseResultError err) -> std::vector<lemni::Expr>{
 					fmt::print(stderr, "Error parsing expression '{}': {}\n",
 						expr, lemni::toStdStrView(err.msg));
 
-					std::exit(-4);
+					std::exit(-3);
 				}
 			},
 			parsed.second
@@ -311,7 +305,7 @@ int main(int argc, char *argv[]){
 			Overload{
 				[&](auto v){ return v; },
 				[&](LemniTypecheckError err) -> std::vector<lemni::TypedExpr>{
-					fmt::print(stderr, "Error parsing expression '{}': {}\n",
+					fmt::print(stderr, "Error type checking expression '{}': {}\n",
 						expr, lemni::toStdStrView(err.msg));
 
 					std::exit(-4);
@@ -329,7 +323,7 @@ int main(int argc, char *argv[]){
 						fmt::print(stderr, "Error evaluating expression '{}': {}\n",
 							expr, lemni::toStdStrView(err.msg));
 
-						std::exit(-4);
+						std::exit(-5);
 					}
 				},
 				evaled
@@ -350,7 +344,15 @@ int main(int argc, char *argv[]){
 		);
 	}
 
-	repl.set_highlighter_callback(lemniHighlightCb);
+	auto bottomType = types.bottom();
+	auto bottomTypeT = lemniBottomAsType(bottomType);
+	auto unitType = types.unit();
+	auto unitTypeT = lemniUnitAsType(unitType);
+	auto boolType = types.bool_();
+	auto boolTypeT = lemniBoolAsType(boolType);
+	auto paramName = LEMNICSTR("doShow");
+
+	auto replModule = lemni::Module(mods, LEMNICSTR("Repl"));
 
 	std::vector<LemniTypedExtFnDeclExpr> extFns = {
 		lemniModuleCreateExtFn(
@@ -375,6 +377,11 @@ int main(int argc, char *argv[]){
 
 	auto replModExpr = lemniCreateTypedModule(typeState, LEMNINULLSTR, replModule);
 	(void)replModExpr;
+
+	replxx::Replxx repl;
+
+	repl.clear_screen();
+	repl.set_highlighter_callback(lemniHighlightCb);
 
 	while(true){
 		std::string_view line = repl.input("\n> ");

@@ -116,14 +116,22 @@ namespace {
 		auto strLen = static_cast<size_t>(std::distance(beg, it));
 		auto str = LemniStr{.ptr = beg, .len = strLen};
 
-		if((str.ptr[0] == '0') && (str.ptr[1] != '.')){
+		auto numBeg = str.ptr;
+		auto numLen = str.len;
+
+		if(*numBeg == '-'){
+			++numBeg;
+			--numLen;
+		}
+
+		if((numLen > 1) && (*numBeg == '0') && (*(numBeg + 1) != '.')){
 			return makeError(state, loc, "Only decimal (base 10) real literals currently supported");
 		}
 
 		return makeResult(LemniToken{ .type = LEMNI_TOKEN_REAL, .text = str, .loc = loc });
 	}
 
-	LemniLexResult lexNat(LemniLexState state, LemniLocation loc, const char *const beg, const char *it, const char *const end){
+	LemniLexResult lexInt(LemniLexState state, LemniLocation loc, const char *const beg, const char *it, const char *const end){
 		while(it != end){
 			auto cp = utf8::peek_next(it, end);
 			if(cp == '.'){
@@ -151,10 +159,18 @@ namespace {
 		auto strLen = static_cast<size_t>(std::distance(beg, it));
 		auto str = LemniStr{.ptr = beg, .len = strLen};
 
-		auto tokenType = LEMNI_TOKEN_NAT;
+		auto tokenType = LEMNI_TOKEN_INT;
 
-		if(str.ptr[0] == '0' && strLen > 1){
-			auto baseSig = str.ptr[1];
+		auto numBeg = str.ptr;
+		auto numLen = str.len;
+
+		if(*numBeg == '-'){
+			++numBeg;
+			--numLen;
+		}
+
+		if(numLen > 1 && *numBeg == '0'){
+			auto baseSig = utf8::peek_next(numBeg + 1, str.ptr + str.len);
 
 			switch(baseSig){
 				case 'b':
@@ -173,9 +189,8 @@ namespace {
 					break;
 
 				default:{
-					auto cp = utf8::peek_next(str.ptr + 1, str.ptr + str.len);
 					std::string errStr = "Invalid integer base '0";
-					utf8::append(cp, std::back_inserter(errStr));
+					utf8::append(baseSig, std::back_inserter(errStr));
 					errStr += "'";
 					return makeError(state, loc, std::move(errStr));
 				}
@@ -183,6 +198,47 @@ namespace {
 		}
 
 		return makeResult(LemniToken{.type = tokenType, .text = str, .loc = loc});
+	}
+
+	LemniLexResult lexPunct(LemniLexState state, LemniLocation loc, const char *const beg, const char *it, const char *const end){
+		LemniTokenType type = LEMNI_TOKEN_OP;
+
+		if(it != end){
+			auto nextCp = utf8::peek_next(it, end);
+			if((*beg == '-') && u_isdigit(nextCp)){
+				return lexInt(state, loc, beg, it, end);
+			}
+			else if((*beg == '/') && (*it == '/')){ // line comment
+				++state->loc.col;
+				++it;
+
+				while((it != end) && (*it != '\n')){
+					++state->loc.col;
+					utf8::advance(it, 1, end);
+				}
+
+				type = LEMNI_TOKEN_COMMENT_LINE;
+			}
+			else do{
+				auto cp = utf8::peek_next(it, end);
+				if(!u_ispunct(cp) && !u_hasBinaryProperty(cp, UCHAR_MATH))
+					break;
+
+				++state->loc.col;
+				utf8::advance(it, 1, end);
+			} while(it != end);
+		}
+
+		auto remLen = std::distance(it, end);
+
+		state->remainder.ptr = it;
+		state->remainder.len = static_cast<size_t>(remLen);
+		state->onNewLine = false;
+
+		auto strLen = std::distance(beg, it);
+		auto str = LemniStr{ .ptr = beg, .len = static_cast<size_t>(strLen) };
+
+		return makeResult(LemniToken{ .type = type, .text = str, .loc = loc });
 	}
 }
 
@@ -363,7 +419,7 @@ LemniLexResult lemniLex(LemniLexState state){
 		}
 	}
 
-	if(u_isspace(cp)){
+	if(u_isspace(cp)){ // space token
 		auto spaceLoc = state->loc;
 		auto spaceStrBeg = it;
 
@@ -409,12 +465,12 @@ LemniLexResult lemniLex(LemniLexState state){
 				});
 		}
 	}
-	else if(u_isdigit(cp)){
+	else if(u_isdigit(cp)){ // numeric token
 		auto beg = it;
 		utf8::advance(it, 1, end);
-		return lexNat(state, state->loc, beg, it, end);
+		return lexInt(state, state->loc, beg, it, end);
 	}
-	else if((cp == '_') || u_hasBinaryProperty(cp, UCHAR_ALPHABETIC)){
+	else if((cp == '_') || u_hasBinaryProperty(cp, UCHAR_ALPHABETIC)){ // id token
 		auto idLoc = state->loc;
 		auto idStrBeg = it;
 
@@ -446,7 +502,7 @@ LemniLexResult lemniLex(LemniLexState state){
 				.loc = idLoc
 			});
 	}
-	else if(int32_t dir = u_getIntPropertyValue(cp, UCHAR_BIDI_PAIRED_BRACKET_TYPE); dir != U_BPT_NONE){
+	else if(int32_t dir = u_getIntPropertyValue(cp, UCHAR_BIDI_PAIRED_BRACKET_TYPE); dir != U_BPT_NONE){ // bracket token
 		bool opening = (dir == U_BPT_OPEN);
 		if(!opening){
 			if(dir != U_BPT_CLOSE){
@@ -482,7 +538,7 @@ LemniLexResult lemniLex(LemniLexState state){
 				.loc = bracketLoc
 			});
 	}
-	else if(u_hasBinaryProperty(cp, UCHAR_QUOTATION_MARK)){ // string
+	else if(u_hasBinaryProperty(cp, UCHAR_QUOTATION_MARK)){ // string token
 		UChar32 mirrored = u_charMirror(cp);
 
 		auto litLoc = state->loc;
@@ -539,7 +595,7 @@ LemniLexResult lemniLex(LemniLexState state){
 				.loc = litLoc
 			});
 	}
-	else if(u_ispunct(cp) || u_hasBinaryProperty(cp, UCHAR_MATH)){
+	else if(u_ispunct(cp) || u_hasBinaryProperty(cp, UCHAR_MATH)){ // operator token
 		auto opLoc = state->loc;
 		auto opStrBeg = it;
 
@@ -547,29 +603,7 @@ LemniLexResult lemniLex(LemniLexState state){
 
 		++state->loc.col;
 
-		while(it != end){
-			cp = utf8::peek_next(it, end);
-			if(!u_ispunct(cp) && !u_hasBinaryProperty(cp, UCHAR_MATH))
-				break;
-
-			++state->loc.col;
-			utf8::advance(it, 1, end);
-		}
-
-		auto remLen = std::distance(it, end);
-		state->remainder.ptr = it;
-		state->remainder.len = static_cast<size_t>(remLen);
-
-		state->onNewLine = false;
-
-		auto opStrLen = static_cast<size_t>(std::distance(opStrBeg, it));
-
-		return makeResult(
-			LemniToken{
-				.type = LEMNI_TOKEN_OP,
-				.text = LemniStr{.ptr = opStrBeg, .len = opStrLen},
-				.loc = opLoc
-			});
+		return lexPunct(state, opLoc, opStrBeg, it, end);
 	}
 	else if(u_iscntrl(cp)){
 		return makeError(state, state->loc, "UTF-8 control character encountered");

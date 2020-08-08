@@ -2436,7 +2436,7 @@ LemniValue lemniCreateValueModule(LemniModule handle){
 
 LemniValue lemniCreateValueUnit(void){ return allocValue<LemniValueUnitT>(); }
 
-LemniValue lemniCreateValueBool(const LemniBool b){ return allocValue<LemniValueBoolT>(b); }
+LemniValue lemniCreateValueBool(const bool b){ return allocValue<LemniValueBoolT>(b ? LEMNI_TRUE : LEMNI_FALSE); }
 
 LemniValue lemniCreateValueFn(LemniTypeFn typeFn, LemniEvalFn fn, void *const ptr, LemniEvalState state, LemniEvalBindings bindings){
 	return allocValue<LemniValueFnT>(typeFn, fn, ptr, state, bindings);

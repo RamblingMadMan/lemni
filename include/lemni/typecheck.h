@@ -77,9 +77,12 @@ LemniModuleMap lemniTypecheckStateModuleMap(LemniTypecheckState state);
 
 LemniScope lemniTypecheckStateScope(LemniTypecheckStateConst state);
 
+LemniTypedPlaceholderExpr lemniTypecheckPlaceholder(LemniTypecheckState state);
+
 /**
  * @brief Evaluate \p expr optionally applied to \p args .
  * The passed expression may be partially evaluated i.e. \p numArgs may be less than the number of params for \p expr .
+ * To skip an argument, ``NULL`` or a typed placeholder may be passed in the \p args array.
  * If \p numArgs is greater than the number of params in \p expr , ``NULL`` will be returned.
  * Evaluating a non-function expressions expects ``0`` for \p numArgs and won't check \p args .
  * @param state typechecking state to use

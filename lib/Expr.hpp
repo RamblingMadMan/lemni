@@ -44,6 +44,18 @@ namespace {
 		v++;
 		return v;
 	}
+
+	template<typename T, typename ... Args>
+	inline T *newExpr(Args &&... args) noexcept(noexcept(T(std::forward<Args>(args)...))){
+		auto mem = std::malloc(sizeof(T));
+		if(!mem) return nullptr;
+		return new(mem) T(std::forward<Args>(args)...);
+	}
+
+	inline void deleteExpr(LemniExpr expr) noexcept{
+		std::destroy_at(expr);
+		std::free(const_cast<LemniExprT*>(expr)); // good lord help me no
+	}
 }
 
 struct LemniExprT{
@@ -55,8 +67,15 @@ struct LemniExprT{
 	LemniLocation loc;
 };
 
+struct LemniPlaceholderExprT: LemniExprT{
+	LemniPlaceholderExprT(LemniLocation loc_) noexcept
+		: LemniExprT(loc_){}
+
+	LemniTypecheckResult typecheck(LemniTypecheckState state, LemniScope scope) const noexcept override;
+};
+
 struct LemniApplicationExprT: LemniExprT{
-	LemniApplicationExprT(LemniLocation loc_, LemniExpr fn_, std::vector<LemniExpr> args_)
+	LemniApplicationExprT(LemniLocation loc_, LemniExpr fn_, std::vector<LemniExpr> args_) noexcept
 		: LemniExprT(loc_), fn(fn_), args(std::move(args_)){}
 
 	LemniTypecheckResult typecheck(LemniTypecheckState state, LemniScope scope) const noexcept override;
@@ -77,7 +96,7 @@ struct LemniAccessExprT: LemniExprT{
 struct LemniLiteralExprT: LemniExprT{ using LemniExprT::LemniExprT; };
 
 struct LemniTupleExprT: LemniLiteralExprT{
-	LemniTupleExprT(LemniLocation loc_, std::vector<LemniExpr> elements_)
+	LemniTupleExprT(LemniLocation loc_, std::vector<LemniExpr> elements_) noexcept
 		: LemniLiteralExprT(loc_), elements(std::move(elements_)){}
 
 	LemniTypecheckResult typecheck(LemniTypecheckState state, LemniScope scope) const noexcept override;
@@ -88,7 +107,7 @@ struct LemniTupleExprT: LemniLiteralExprT{
 struct LemniConstantExprT: LemniLiteralExprT{ using LemniLiteralExprT::LemniLiteralExprT; };
 
 struct LemniMacroExprT: LemniConstantExprT{
-	LemniMacroExprT(LemniLocation loc_, std::vector<LemniExpr> exprs_)
+	LemniMacroExprT(LemniLocation loc_, std::vector<LemniExpr> exprs_) noexcept
 		: LemniConstantExprT(loc_), exprs(std::move(exprs_)){}
 
 	LemniTypecheckResult typecheck(LemniTypecheckState state, LemniScope scope) const noexcept override;

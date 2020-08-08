@@ -43,7 +43,13 @@ LEMNI_OPAQUE_T(LemniParseState);
 typedef struct {
 	LemniLocation loc;
 	LemniStr msg;
-} LemniParseError;
+} LemniParseResultError;
+
+typedef struct {
+	LemniExpr expr;
+	LemniNat64 numRem;
+	const LemniToken *rem;
+} LemniParseResultGood;
 
 /**
  * @brief Type representing the result of a parsing operation.
@@ -51,20 +57,17 @@ typedef struct {
 typedef struct {
 	bool hasError;
 	union {
-		LemniParseError error;
-		LemniExpr expr;
+		LemniParseResultError error;
+		LemniParseResultGood res;
 	};
 } LemniParseResult;
 
 /**
  * @brief Create new state for parsing operations.
  * @note the returned state must be destroyed with \ref lemniDestroyParseState .
- * @warning the pointer \p tokens must stay valid for the life of the returned state.
- * @param tokens pointer to an array of tokens to parse
- * @param n how many tokens in \p tokens array
  * @returns the newly created state
  */
-LemniParseState lemniCreateParseState(const LemniToken *const tokens, const size_t n);
+LemniParseState lemniCreateParseState();
 
 /**
  * @brief Destroy state previously created with \ref lemniCreateParseState .
@@ -74,25 +77,13 @@ LemniParseState lemniCreateParseState(const LemniToken *const tokens, const size
 void lemniDestroyParseState(LemniParseState state);
 
 /**
- * @brief Get a pointer to the remaining tokens in \p state .
- * @param state the state to check
- * @returns pointer to tokens
- */
-const LemniToken *lemniParseStateTokens(LemniParseStateConst state);
-
-/**
- * @brief Get the number of remaining tokens in \p state .
- * @param state the state to check
- * @returns the number of tokens
- */
-size_t lemniParseStateNumTokens(LemniParseStateConst state);
-
-/**
  * @brief Parse a single expression from \p state .
  * @param state the state to modify
+ * @param numTokens number of tokens in \p tokens array
+ * @param tokens pointer to an array of tokens to parse
  * @returns the result of the parsing operation
  */
-LemniParseResult lemniParse(LemniParseState state);
+LemniParseResult lemniParse(LemniParseState state, const LemniNat64 numTokens, const LemniToken *const tokens);
 
 #ifdef __cplusplus
 }
@@ -103,12 +94,12 @@ LemniParseResult lemniParse(LemniParseState state);
 
 namespace lemni{
 	using Expr = LemniExpr;
-	using ParseError = LemniParseError;
+	using ParseError = LemniParseResultError;
 
 	class ParseState{
 		public:
-			ParseState(const LemniToken *const tokens, const size_t n)
-				: m_state(lemniCreateParseState(tokens, n)){}
+			ParseState()
+				: m_state(lemniCreateParseState()){}
 
 			ParseState(ParseState &&other) noexcept
 				: m_state(other.m_state)
@@ -121,6 +112,7 @@ namespace lemni{
 			~ParseState(){ if(m_state) lemniDestroyParseState(m_state); }
 
 			ParseState &operator=(ParseState &&other) noexcept{
+				if(m_state) lemniDestroyParseState(m_state);
 				m_state = other.m_state;
 				other.m_state = nullptr;
 				return *this;
@@ -132,38 +124,48 @@ namespace lemni{
 
 			LemniParseState handle() noexcept{ return m_state; }
 
-			std::size_t numTokens() noexcept{ return lemniParseStateNumTokens(m_state); }
-
 		private:
 			LemniParseState m_state;
 
-			friend std::variant<Expr, ParseError> parse(ParseState &state) noexcept;
+			friend std::variant<std::pair<Expr, const LemniToken*>, ParseError> parse(ParseState &state, const LemniToken *const it, const LemniToken *const end) noexcept;
 	};
 
-	inline std::variant<Expr, ParseError> parse(ParseState &state) noexcept{
-		auto res = lemniParse(state.m_state);
+	inline std::variant<std::pair<Expr, const LemniToken*>, ParseError> parse(ParseState &state, const LemniToken *const it, const LemniToken *const end) noexcept{
+		auto res = lemniParse(state.m_state, static_cast<LemniNat64>(end - it), it);
 		if(res.hasError) return res.error;
-		else return res.expr;
+		else return std::make_pair(res.res.expr, res.res.rem);
 	}
 
-	inline std::pair<ParseState, std::variant<std::vector<Expr>, ParseError>> parseAll(const std::vector<LemniToken> &toks){
-		auto state = ParseState(toks.data(), toks.size());
+	inline std::variant<std::vector<Expr>, ParseError> parseAll(ParseState &state, const LemniToken *const beg, const LemniToken *const end){
 		std::vector<Expr> exprs;
-		exprs.reserve(toks.size());
+		exprs.reserve(static_cast<LemniNat64>(end - beg));
 
-		while(1){
-			auto res = parse(state);
+		auto it = beg;
+
+		while(it != end){
+			auto res = parse(state, it, end);
 
 			if(auto err = std::get_if<ParseError>(&res))
-				return std::make_pair(std::move(state), *err);
+				return *err;
 			else{
-				auto expr = *std::get_if<Expr>(&res);
-				if(!expr) break;
-				else exprs.emplace_back(expr);
+				auto val = *std::get_if<std::pair<Expr, const LemniToken*>>(&res);
+				if(!val.first) break;
+
+				exprs.emplace_back(val.first);
+				it = val.second;
 			}
 		}
 
-		return std::make_pair(std::move(state), std::move(exprs));
+		return exprs;
+	}
+
+	inline std::variant<std::vector<Expr>, ParseError> parseAll(ParseState &state, const std::vector<LemniToken> &toks){
+		return parseAll(state, toks.data(), toks.data() + toks.size());
+	}
+
+	inline std::pair<ParseState, std::variant<std::vector<Expr>, ParseError>> parseAll(const std::vector<LemniToken> &toks){
+		auto state = ParseState();
+		return std::make_pair(std::move(state), parseAll(state, toks));
 	}
 }
 #endif // !LEMNI_NO_CPP

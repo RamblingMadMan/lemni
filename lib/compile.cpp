@@ -100,6 +100,19 @@ LemniFn lemniObjectFunction(LemniObject obj, const LemniStr mangledName){
 	return nullptr;
 }
 
+template<typename F, typename G>
+auto compose(F f, G g){
+	return [f, g](auto &&... args){ return f(g(std::forward<decltype(args)>(args)...)); };
+}
+
+using ConvFn = std::function<llvm::Value*(LemniLLVMState state, llvm::Value *value)>;
+
+static ConvFn llvmConv(LemniType to){
+	static auto identity = [](LemniLLVMState, llvm::Value *value){ return value; };
+
+	return identity;
+}
+
 LemniJitResult LemniTypedBinaryOpExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
 	auto lhsRes = this->lhs->compile(state, ctx);
 	if(lhsRes.hasError) return lhsRes;
@@ -110,6 +123,8 @@ LemniJitResult LemniTypedBinaryOpExprT::compile(LemniCompileState state, LemniCo
 	LemniJitResult ret;
 
 	ret.hasError = false;
+
+	auto retType = lemniLLVMType(&state->llvmState, resultType);
 
 	switch(this->op){
 		case LEMNI_BINARY_ADD:{
@@ -269,6 +284,19 @@ LemniJitResult LemniTypedBoolExprT::compile(LemniCompileState state, LemniCompil
 	return res;
 }
 
+LemniJitResult LemniTypedNatNExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
+
+	auto natTy = llvm::Type::getIntNTy(state->llvmState.ctx, numBits);
+
+	auto apInt = llvm::APInt(numBits, bits[0], false);
+
+	LemniJitResult res;
+	res.hasError = false;
+	res.rvalue = llvm::ConstantInt::get(natTy, apInt);
+	return res;
+}
+
 LemniJitResult LemniTypedNat16ExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
 	(void)ctx;
 
@@ -299,6 +327,19 @@ LemniJitResult LemniTypedNat64ExprT::compile(LemniCompileState state, LemniCompi
 	LemniJitResult res;
 	res.hasError = false;
 	res.rvalue = llvm::ConstantInt::get(natTy, value);
+	return res;
+}
+
+LemniJitResult LemniTypedIntNExprT::compile(LemniCompileState state, LemniCompileContext ctx) const noexcept{
+	(void)ctx;
+
+	auto intTy = llvm::Type::getIntNTy(state->llvmState.ctx, numBits);
+
+	auto apInt = llvm::APInt(numBits, bits[0], true);
+
+	LemniJitResult res;
+	res.hasError = false;
+	res.rvalue = llvm::ConstantInt::get(intTy, apInt);
 	return res;
 }
 

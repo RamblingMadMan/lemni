@@ -190,7 +190,7 @@ struct LemniValueFnT: LemniValueT{
 };
 
 struct LemniValueBoolT: LemniValueT{
-	LemniValueBoolT(LemniBool value_) noexcept: value(value_){}
+	LemniValueBoolT(const LemniBool value_) noexcept: value(value_){}
 
 	LemniValue copy() const noexcept override{ return lemniCreateValueBool(value); }
 
@@ -208,8 +208,9 @@ struct LemniValueBoolT: LemniValueT{
 			if(!boolType) return nullptr;
 		}
 
-		auto ret = std::make_unique<std::byte[]>(sizeof(unsigned long));
-		std::memset(ret.get(), value ? ~0 : 0, sizeof(unsigned long));
+		auto ret = std::make_unique<std::byte[]>(sizeof(ffi_arg));
+		std::memcpy(ret.get(), &value, sizeof(LemniBool));
+		//std::memset(ret.get(), value ? ~0 : 0, sizeof(ffi_arg));
 		//ret[0] = std::byte(value ? 1 : 0);
 
 		return ret;

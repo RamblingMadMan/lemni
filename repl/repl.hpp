@@ -7,6 +7,8 @@
 
 #include "fmt/core.h"
 
+#include "lemni/Interop.h"
+
 inline bool showTypes = true;
 
 inline void replHelp(){
@@ -47,8 +49,8 @@ inline void replHelp(){
 	std::fflush(stdout);
 }
 
-inline void replShowTypes(const std::uint8_t doShow){
-	showTypes = doShow;
+inline void replShowTypes(const LemniBool doShow){
+	showTypes = !!doShow;
 }
 
 inline void replTut(){

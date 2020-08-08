@@ -106,16 +106,32 @@ inline bool operator<(const LemniStr &lhs, const LemniStr &rhs) noexcept{
 	return lemniStrCmp(lhs, rhs) < 0;
 }
 
+inline bool operator<(const LemniStr &lhs, const std::string_view &rhs) noexcept{
+	return lemni::toStdStrView(lhs) < rhs;
+}
+
 inline bool operator>(const LemniStr &lhs, const LemniStr &rhs) noexcept{
 	return lemniStrCmp(lhs, rhs) > 0;
+}
+
+inline bool operator>(const LemniStr &lhs, const std::string_view &rhs) noexcept{
+	return lemni::toStdStrView(lhs) > rhs;
 }
 
 inline bool operator==(const LemniStr &lhs, const LemniStr &rhs) noexcept{
 	return lemniStrCmp(lhs, rhs) == 0;
 }
 
+inline bool operator==(const LemniStr &lhs, const std::string_view &rhs) noexcept{
+	return lemni::toStdStrView(lhs) == rhs;
+}
+
 inline bool operator!=(const LemniStr &lhs, const LemniStr &rhs) noexcept{
 	return lemniStrCmp(lhs, rhs) != 0;
+}
+
+inline bool operator!=(const LemniStr &lhs, const std::string_view &rhs) noexcept{
+	return lemni::toStdStrView(lhs) != rhs;
 }
 
 inline std::ostream &operator<<(std::ostream &str, const LemniStr &s){

@@ -45,41 +45,15 @@ struct LemniTypecheckStateT{
 	LemniModuleMap mods;
 	LemniTypeSet types;
 	LemniScope globalScope;
+	LemniTypedPlaceholderExpr placeholder;
 
 	//std::vector<std::unique_ptr<LemniExprT>> exprs;
+	std::vector<LemniExpr> stored;
 	std::vector<LemniTypedExpr> alloced;
 	std::vector<std::unique_ptr<std::string>> errStrs;
 	//std::map<LemniLValueExpr, LemniTypedExpr> bindings;
 	//std::map<LemniLValueExpr, LemniTypedLiteralExpr> literalBindings;
 };
-
-LemniTypecheckState lemniCreateTypecheckState(LemniModuleMap mods){
-	auto mem = std::malloc(sizeof(LemniTypecheckStateT));
-	auto p = new(mem) LemniTypecheckStateT;
-	p->mods = mods;
-	p->types = lemniModuleMapTypes(mods);
-	p->globalScope = lemniCreateScope(nullptr);
-	return p;
-}
-
-void lemniDestroyTypecheckState(LemniTypecheckState state){
-	lemniDestroyScope(state->globalScope);
-	std::destroy_at(state);
-	std::free(state);
-}
-
-LemniModuleMap lemniTypecheckStateModuleMap(LemniTypecheckState state){
-	return state->mods;
-}
-
-LemniScope lemniTypecheckStateScope(LemniTypecheckStateConst state){
-	return state->globalScope;
-}
-
-LemniTypecheckResult lemniTypecheckEval(LemniTypecheckState state, LemniTypedExpr expr, const LemniNat64 numArgs, LemniTypedExpr *const args){
-	auto nullBindings = LemniPartialBindingsT();
-	return expr->partialEval(state, &nullBindings, numArgs, args);
-}
 
 namespace {
 	inline LemniTypecheckResult litError(LemniLocation loc, LemniStr str){
@@ -119,7 +93,59 @@ namespace {
 
 		return p;
 	}
+}
 
+LemniTypecheckState lemniCreateTypecheckState(LemniModuleMap mods){
+	auto mem = std::malloc(sizeof(LemniTypecheckStateT));
+	auto p = new(mem) LemniTypecheckStateT;
+	p->mods = mods;
+	p->types = lemniModuleMapTypes(mods);
+	p->globalScope = lemniCreateScope(nullptr);
+	p->placeholder = createTypedExpr<LemniTypedPlaceholderExprT>(p, lemniTypeSetGetPseudo(p->types, lemniEmptyTypeInfo()));
+	return p;
+}
+
+void lemniDestroyTypecheckState(LemniTypecheckState state){
+	lemniDestroyScope(state->globalScope);
+	std::destroy_at(state);
+	std::free(state);
+}
+
+LemniModuleMap lemniTypecheckStateModuleMap(LemniTypecheckState state){
+	return state->mods;
+}
+
+LemniScope lemniTypecheckStateScope(LemniTypecheckStateConst state){
+	return state->globalScope;
+}
+
+LemniTypedPlaceholderExpr lemniTypecheckPlaceholder(LemniTypecheckState state){
+	return state->placeholder;
+}
+
+LemniTypecheckResult lemniTypecheckEval(LemniTypecheckState state, LemniTypedExpr expr, const LemniNat64 numArgs, LemniTypedExpr *const args){
+	auto nullBindings = LemniPartialBindingsT();
+
+	if(numArgs != 0){
+		bool hasArgs = false;
+		std::size_t trueLen = 0;
+
+		for(std::size_t i = 0; i < numArgs; i++){
+			if(args[i] && !dynamic_cast<LemniTypedPlaceholderExpr>(args[i])){
+				hasArgs = true;
+				trueLen = i + 1;
+			}
+		}
+
+		if(hasArgs){
+			return expr->partialEval(state, &nullBindings, trueLen, args);
+		}
+	}
+
+	return expr->partialEval(state, &nullBindings, 0, nullptr);
+}
+
+namespace {
 	template<typename ... Fs> struct Overload: Fs...{ using Fs::operator()...; };
 	template<typename ... Fs> Overload(Fs...) -> Overload<Fs...>;
 
@@ -404,22 +430,206 @@ LemniTypecheckResult LemniTypedUnaryOpExprT::partialEval(
 		else if(numArgs > 0) return opRes.expr->partialEval(state, bindings, numArgs, args);
 		else return opRes;
 	}
-	else if(numArgs > 0) return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("arguments passed to non-function expression"));
+	else if(numArgs > 0) return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("arguments passed to non-function unary op expression"));
 	else return makeResult(this);
 }
 
-LemniTypecheckResult LemniTypedFnDefExprT::partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept{
-	LemniInt64 newArity = params.size() - numArgs;
+LemniTypecheckResult LemniTypedBinaryOpExprT::partialEval(
+	LemniTypecheckState state, LemniPartialBindings bindings,
+	const LemniNat64 numArgs, LemniTypedExpr *const args
+) const noexcept{
+	(void)args;
 
-	if(newArity < 0) return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("too many arguments passed in function call"));
+	if(numArgs > 0) return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("arguments passed to non-function binary op expression"));
 
-	auto fnBound = LemniPartialBindingsT(bindings);
+	auto lhsFound = bindings->find(lhs->deref());
+	auto rhsFound = bindings->find(rhs->deref());
 
-	for(LemniNat64 i = 0; i < numArgs; i++){
-		fnBound.bound[params[i]] = args[i];
+	if(!lhsFound) lhsFound = lhs;
+	if(!rhsFound) rhsFound = rhs;
+
+	if((lhsFound != lhs) || (rhsFound != rhs)){
+		auto resultType = lemniBinaryOpResultType(state->types, lhsFound->type(), rhsFound->type(), op);
+		auto binop = createTypedExpr<LemniTypedBinaryOpExprT>(state, resultType, op, lhsFound, rhsFound);
+		return makeResult(binop);
+	}
+	else{
+		return makeResult(this);
+	}
+}
+
+LemniTypecheckResult LemniTypedUnresolvedRefExprT::partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept{
+	if(auto bound = bindings->find(this)){ return bound->partialEval(state, bindings, numArgs, args); }
+	else if(numArgs > 0){ return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("arguments passed to unresolved reference")); }
+	else{ return makeResult(this); }
+}
+
+LemniTypecheckResult LemniTypedApplicationExprT::partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args_) const noexcept{
+	std::vector<LemniTypedExpr> newArgs;
+	std::vector<LemniTypedExpr> evalArgs;
+	newArgs.reserve(this->args.size());
+	evalArgs.reserve(this->args.size());
+
+	std::size_t numEvalArgs = 0;
+
+	for(std::size_t i = 0; i < this->args.size(); i++){
+		auto arg = this->args[i];
+
+		auto newArg = arg->partialEval(state, bindings, 0, nullptr);
+		if(newArg.hasError) return newArg;
+
+		if(newArg.expr != arg){
+			numEvalArgs = i + 1;
+			evalArgs.emplace_back(newArg.expr);
+		}
+		else{
+			evalArgs.emplace_back(nullptr);
+			newArgs.emplace_back(arg);
+		}
 	}
 
-	return body->partialEval(state, &fnBound, 0, nullptr);
+	LemniTypedExpr appExpr = this;
+
+	if(numEvalArgs > 0){
+		auto fnEvalRes = fn->partialEval(state, bindings, numEvalArgs, evalArgs.data());
+		if(fnEvalRes.hasError) return fnEvalRes;
+
+		auto newFn = fnEvalRes.expr;
+
+		if(newArgs.empty()){
+			appExpr = newFn;
+		}
+		else{
+			auto newFnType = newFn->type();
+
+			LemniType newResultType = resultType;
+
+			if(auto fn_ = dynamic_cast<LemniFunctionType>(newFnType)){
+				newResultType = fn_->result();
+			}
+			else if(auto pseudo_ = dynamic_cast<LemniPseudoType>(newFnType)){
+				newResultType = lemniTypeSetGetPseudo(state->types, lemniEmptyTypeInfo());
+			}
+			else{
+				return makeError(state, LemniLocation{ UINT32_MAX, UINT32_MAX }, "application on non-function value");
+			}
+
+			appExpr = createTypedExpr<LemniTypedApplicationExprT>(state, newResultType, newFn, newArgs);
+		}
+	}
+
+	if(numArgs > 0){
+		auto appExprType = appExpr->type();
+
+		auto appArgs = std::vector<LemniTypedExpr>(args_, args_ + numArgs);
+
+		if(auto fn_ = dynamic_cast<LemniFunctionType>(appExprType)){
+			for(std::size_t i = 0; i < numArgs; i++){
+				appArgs.emplace_back(args_[i]);
+
+				if(!args_[i] || dynamic_cast<LemniTypedPlaceholderExpr>(args_[i])) continue;
+
+				auto paramType = fn_->param(i);
+				auto argType = args_[i]->type();
+
+				if(!lemniTypeIsCastable(argType, paramType)){
+					return makeError(
+						state, LemniLocation{ UINT32_MAX, UINT32_MAX },
+						fmt::format(
+							"can not convert argument {} from '{}' to '{}'",
+							i + 1, lemni::toStdStrView(argType->str()), lemni::toStdStrView(paramType->str())
+						)
+					);
+				}
+			}
+
+			auto retExpr = createTypedExpr<LemniTypedApplicationExprT>(state, fn_->result(), appExpr, std::move(appArgs));
+			return makeResult(retExpr);
+		}
+		else if(auto pseudo_ = dynamic_cast<LemniPseudoType>(appExprType)){
+			auto newResultType = lemniTypeSetGetPseudo(state->types, lemniEmptyTypeInfo());
+			auto retExpr = createTypedExpr<LemniTypedApplicationExprT>(state, newResultType, appExpr, std::move(appArgs));
+			return makeResult(retExpr);
+		}
+		else{
+			return makeError(state, LemniLocation{ UINT32_MAX, UINT32_MAX }, "application on non-function value");
+		}
+	}
+
+	return makeResult(appExpr);
+}
+
+LemniTypecheckResult LemniTypedFnDefExprT::partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept{
+	auto fnBound = LemniPartialBindingsT(bindings);
+
+	auto passedBits = std::bitset<64>(0x0);
+
+	for(LemniNat64 i = 0; i < numArgs; i++){
+		auto arg = args[i];
+		if(arg && !dynamic_cast<LemniTypedPlaceholderExpr>(arg)){
+			fnBound.bound[params[i]] = arg;
+			passedBits.set(i);
+		}
+	}
+
+	auto numPassed = passedBits.count();
+
+	LemniInt64 newArity = params.size() - numPassed;
+
+	if(newArity == 0){
+		return body->partialEval(state, &fnBound, 0, nullptr);
+	}
+	else if(newArity > 0){
+		std::vector<LemniTypedParamBindingExpr> newParams;
+		newParams.reserve(newArity);
+
+		for(LemniInt64 i = 0; i < newArity; i++){
+			if(!passedBits.test(i)){
+				newParams.emplace_back(params[i]);
+			}
+		}
+
+		auto bodyRes = body->partialEval(state, &fnBound, 0, nullptr);
+		if(bodyRes.hasError) return bodyRes;
+
+		auto newBody = bodyRes.expr;
+
+		auto resultType = fnType->result();
+		if(lemniTypeAsPseudo(resultType)){
+			resultType = newBody->type();
+		}
+
+		auto fnExpr = createTypedExpr<LemniTypedFnDefExprT>(state, state->types, std::string(this->id()), resultType, newParams, newBody);
+		return makeResult(fnExpr);
+	}
+	else{
+		return litError(LemniLocation{ UINT32_MAX, UINT32_MAX }, LEMNICSTR("too many arguments passed in function call"));
+	}
+}
+
+LemniTypecheckResult LemniTypedExtFnDeclExprT::partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept{
+	(void)bindings;
+
+	if(numArgs > 0){
+		std::vector<LemniTypedExpr> newArgs;
+		newArgs.reserve(numArgs);
+
+		for(LemniNat64 i = 0; i < numArgs; i++){
+			auto arg = args[i];
+			if(arg){
+				newArgs.emplace_back(arg);
+			}
+			else{
+				newArgs.emplace_back(state->placeholder);
+			}
+		}
+
+		auto appExpr = createTypedExpr<LemniTypedApplicationExprT>(state, fnType->result(), this, std::move(newArgs));
+		return makeResult(appExpr);
+	}
+	else{
+		return makeResult(this);
+	}
 }
 
 LemniTypedModuleExpr lemniCreateTypedModule(LemniTypecheckState state, const LemniStr alias, LemniModule module){
@@ -456,6 +666,11 @@ LemniTypedExtFnDeclExpr lemniCreateTypedExtFn(
 	lemniScopeSet(state->globalScope, expr);
 
 	return expr;
+}
+
+LemniTypecheckResult LemniPlaceholderExprT::typecheck(LemniTypecheckState state, LemniScope) const noexcept{
+	auto type = lemniTypeSetGetPseudo(state->types, lemniEmptyTypeInfo());
+	return makeResult(createTypedExpr<LemniTypedPlaceholderExprT>(state, type));
 }
 
 LemniTypecheckResult LemniApplicationExprT::typecheck(LemniTypecheckState state, LemniScope scope) const noexcept{
@@ -522,14 +737,12 @@ LemniTypecheckResult LemniApplicationExprT::typecheck(LemniTypecheckState state,
 
 	if(auto fnType = lemniTypeAsFunction(fnExprType)){
 		auto numParams = lemniFunctionTypeNumParams(fnType);
-		if(args.size() != numParams){
-			auto errStr = "wrong number of arguments passed to function"s;
-			if(args.size() < numParams)
-				errStr += " (partial application unimplemented)";
 
-			return makeError(state, loc, std::move(errStr));
+		if(args.size() > numParams){
+			return litError(loc, LEMNICSTR("too many arguments passed to function"));
 		}
 
+		std::bitset<64> evaledArgs;
 		std::vector<LemniTypedExpr> argExprs;
 		argExprs.reserve(args.size());
 
@@ -551,10 +764,36 @@ LemniTypecheckResult LemniApplicationExprT::typecheck(LemniTypecheckState state,
 			}
 
 			argExprs.emplace_back(argRes.expr);
+
+			if(dynamic_cast<LemniTypedConstantExpr>(argRes.expr)){
+				evaledArgs.set(i);
+			}
 		}
 
-		auto appExpr = createTypedExpr<LemniTypedApplicationExprT>(state, fnType->result(), fnRes.expr, std::move(argExprs));
-		return makeResult(appExpr);
+		auto numEvaled = evaledArgs.count();
+
+		if(numEvaled == 0){
+			auto appExpr = createTypedExpr<LemniTypedApplicationExprT>(state, fnType->result(), fnRes.expr, std::move(argExprs));
+			return makeResult(appExpr);
+		}
+		else{
+			std::vector<LemniTypedExpr> evalArgs;
+			evalArgs.reserve(args.size());
+
+			for(std::size_t i = 0; i < args.size(); i++){
+				if(evaledArgs.test(i)){
+					evalArgs.emplace_back(argExprs[i]);
+				}
+				else{
+					evalArgs.emplace_back(nullptr);
+				}
+			}
+
+			auto evaled = lemniTypecheckEval(state, fnRes.expr, evalArgs.size(), evalArgs.data());
+			if(evaled.hasError) return evaled;
+
+			return makeResult(evaled.expr);
+		}
 	}
 	else if(auto pseudoType = lemniTypeAsPseudo(fnExprType)){
 		std::vector<LemniTypedExpr> argExprs;
@@ -625,9 +864,7 @@ LemniTypecheckResult LemniTupleExprT::typecheck(LemniTypecheckState state, Lemni
 	}
 
 	std::vector<LemniTypedExpr> elems;
-	std::vector<LemniType> elemTypes;
 	elems.reserve(elements.size());
-	elemTypes.reserve(elements.size());
 
 	for(auto elem : elements){
 		auto res = elem->typecheck(state, scope);
@@ -635,11 +872,22 @@ LemniTypecheckResult LemniTupleExprT::typecheck(LemniTypecheckState state, Lemni
 			return res;
 		else{
 			elems.emplace_back(res.expr);
-			elemTypes.emplace_back(res.expr->type());
 		}
 	}
 
-	return makeResult(createTypedExpr<LemniTypedProductExprT>(state, state->types, std::move(elems)));
+	if(elems.size() == 1){
+		return makeResult(elems[0]);
+	}
+	else{
+		return makeResult(createTypedExpr<LemniTypedProductExprT>(state, state->types, std::move(elems)));
+	}
+}
+
+LemniTypecheckResult LemniMacroExprT::typecheck(LemniTypecheckState state, LemniScope) const noexcept{
+	state->alloced;
+
+	auto exprType = lemniTypeSetGetExpr(state->types);
+	return makeResult(createTypedExpr<LemniTypedMacroExprT>(state, exprType, exprs));
 }
 
 LemniTypecheckResult LemniUnitExprT::typecheck(LemniTypecheckState state, LemniScope) const noexcept{
@@ -718,74 +966,47 @@ LemniTypecheckResult LemniRatioExprT::typecheck(LemniTypecheckState state, Lemni
 LemniTypecheckResult LemniIntExprT::typecheck(LemniTypecheckState state, LemniScope) const noexcept{
 	if(val < lemni::AInt(0)){
 		// integer
-		auto numBits = ceilPowerOfTwo(val.numBits());
+		/*
+		auto exactNumBits = val.numBits();
+		auto numBits = ceilPowerOfTwo(exactNumBits);
 		if(numBits < 16)
 			numBits = 16;
 		else if(numBits > 64)
 			numBits = 0;
+		*/
+
+		auto numBits = val.numBits();
 
 		auto intType = lemniTypeSetGetInt(state->types, numBits);
 
 		LemniTypedIntExpr intExpr;
 
-		switch(numBits){
-			case 16:{
-				intExpr = createTypedExpr<LemniTypedInt16ExprT>(state, intType, val.toLong());
-				break;
-			}
-
-			case 32:{
-				intExpr = createTypedExpr<LemniTypedInt32ExprT>(state, intType, val.toLong());
-				break;
-			}
-
-			case 64:{
-				intExpr = createTypedExpr<LemniTypedInt64ExprT>(state, intType, val.toLong());
-				break;
-			}
-
-			case 0:
-			default:{
-				intExpr = createTypedExpr<LemniTypedAIntExprT>(state, intType, val);
-				break;
-			}
+		if(numBits <= 64){
+			auto intVal = val.toLong();
+			LemniNat64 bits = 0;
+			std::memcpy(&bits, &intVal, sizeof(intVal));
+			intExpr = createTypedExpr<LemniTypedIntNExprT>(state, intType, numBits, bits);
+		}
+		else{
+			intExpr = createTypedExpr<LemniTypedAIntExprT>(state, intType, val);
 		}
 
 		return makeResult(intExpr);
 	}
 	else{
 		// natural
-		auto numBits = ceilPowerOfTwo(val.numBitsUnsigned());
-		if(numBits < 16)
-			numBits = 16;
-		else if(numBits > 64)
-			numBits = 0;
+		auto numBits = val.numBitsUnsigned();
 
 		auto natType = lemniTypeSetGetNat(state->types, numBits);
 
 		LemniTypedNatExpr natExpr;
 
-		switch(numBits){
-			case 16:{
-				natExpr = createTypedExpr<LemniTypedNat16ExprT>(state, natType, val.toULong());
-				break;
-			}
-
-			case 32:{
-				natExpr = createTypedExpr<LemniTypedNat32ExprT>(state, natType, val.toULong());
-				break;
-			}
-
-			case 64:{
-				natExpr = createTypedExpr<LemniTypedNat64ExprT>(state, natType, val.toULong());
-				break;
-			}
-
-			case 0:
-			default:{
-				natExpr = createTypedExpr<LemniTypedANatExprT>(state, natType, val);
-				break;
-			}
+		if(numBits <= 64){
+			auto natVal = val.toULong();
+			natExpr = createTypedExpr<LemniTypedNatNExprT>(state, natType, numBits, natVal);
+		}
+		else{
+			natExpr = createTypedExpr<LemniTypedANatExprT>(state, natType, val);
 		}
 
 		return makeResult(natExpr);
@@ -1094,23 +1315,69 @@ LemniType lemniUnaryOpResultType(LemniTypeSet types, LemniType value, LemniUnary
 	return nullptr;
 }
 
-LemniType lemniBinaryOpResultType(LemniTypeSet types, LemniType lhs, LemniType rhs, LemniBinaryOp op){
-	auto lhsInfo = lemniTypeSetGetTypeInfo(types, lhs);
-	auto rhsInfo = lemniTypeSetGetTypeInfo(types, rhs);
+namespace {
+	template<typename F, typename ... Args>
+	auto typeApply(LemniType t, F &&f, Args &&... args){
+		if(auto num = lemniTypeAsNumber(t)) return std::forward<F>(f)(num, std::forward<Args>(args)...);
+		if(auto real = lemniTypeAsReal(t)) return std::forward<F>(f)(real, std::forward<Args>(args)...);
+		if(auto ratio = lemniTypeAsRatio(t)) return std::forward<F>(f)(ratio, std::forward<Args>(args)...);
+		if(auto int_ = lemniTypeAsInt(t)) return std::forward<F>(f)(int_, std::forward<Args>(args)...);
+		if(auto nat = lemniTypeAsNat(t)) return std::forward<F>(f)(nat, std::forward<Args>(args)...);
+		else return std::forward<F>(f)(t, std::forward<Args>(args)...);
+	}
+}
 
+LemniType lemniBinaryOpResultType(LemniTypeSet types, LemniType lhs, LemniType rhs, LemniBinaryOp op){
 	if(lemniTypeAsPseudo(lhs) || lemniTypeAsPseudo(rhs)){
-		// TODO: or usage flags
+		// TODO: OR usage flags
 		return lemniTypeSetGetPseudo(types, lemniEmptyTypeInfo());
 	}
-	else if(lemniTypeInfoIsArithmetic(lhsInfo) && lemniTypeInfoIsArithmetic(rhsInfo)){
-		if(lemniBinaryOpIsLogic(op))
-			return lemniTypeSetGetBool(types);
-		else if(op == LEMNI_BINARY_SUB){
-			lhs = lemniTypeMakeSigned(types, lhs);
-			rhs = lemniTypeMakeSigned(types, rhs);
-		}
-
-		return lemniTypePromote(types, lhs, rhs);
+	else if(lemniBinaryOpIsLogic(op)){
+		return lemniTypeSetGetBool(types);
+	}
+	else{
+		return typeApply(lemniTypePromote(types, lhs, rhs),
+			Overload{
+				[](LemniType) -> LemniType{ return nullptr; },
+				[](LemniNumberType num) -> LemniType{ return num; },
+				[&](LemniNatType nat) -> LemniType{
+					switch(op){
+						case LEMNI_BINARY_ADD: return lemniTypeSetGetNat(types, nat->numBits() + 1);
+						case LEMNI_BINARY_SUB: return lemniTypeSetGetInt(types, nat->numBits() + 2);
+						case LEMNI_BINARY_MUL: return lemniTypeSetGetNat(types, nat->numBits() * 2);
+						case LEMNI_BINARY_DIV: return lemniTypeSetGetRatio(types, nat->numBits() * 2); // should probably be (n * 2) + 2
+						default: return nat;
+					}
+				},
+				[&](LemniIntType int_) -> LemniType{
+					switch(op){
+						case LEMNI_BINARY_ADD:
+						case LEMNI_BINARY_SUB: return lemniTypeSetGetInt(types, int_->numBits() + 1);
+						case LEMNI_BINARY_MUL: return lemniTypeSetGetNat(types, int_->numBits() * 2);
+						case LEMNI_BINARY_DIV: return lemniTypeSetGetRatio(types, int_->numBits() * 2);
+						default: return int_;
+					}
+				},
+				[&](LemniRatioType ratio) -> LemniType{
+					switch(op){
+						case LEMNI_BINARY_ADD:
+						case LEMNI_BINARY_SUB: return lemniTypeSetGetInt(types, ratio->numBits() + 2);
+						case LEMNI_BINARY_MUL:
+						case LEMNI_BINARY_DIV: return lemniTypeSetGetNat(types, ratio->numBits() * 2);
+						default: return ratio;
+					}
+				},
+				[&](LemniRealType real) -> LemniType{
+					switch(op){
+						case LEMNI_BINARY_ADD:
+						case LEMNI_BINARY_SUB: return lemniTypeSetGetInt(types, real->numBits() + 2);
+						case LEMNI_BINARY_MUL:
+						case LEMNI_BINARY_DIV: return lemniTypeSetGetNat(types, real->numBits() * 2);
+						default: return real;
+					}
+				}
+			}
+		);
 	}
 
 	// TODO: implement sum type results

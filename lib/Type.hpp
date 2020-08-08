@@ -141,6 +141,12 @@ static inline constexpr auto metaTypeInfo() noexcept{
 	return ret;
 }
 
+static inline constexpr auto exprTypeInfo() noexcept{
+	auto ret = zeroedTypeInfo();
+	ret.typeClass = LEMNI_TYPECLASS_EXPR;
+	return ret;
+}
+
 static inline constexpr auto scalarTypeInfo(const uint32_t traits, const uint32_t numBits = 0) noexcept{
 	auto ret = zeroedTypeInfo();
 	ret.typeClass = LEMNI_TYPECLASS_SCALAR;
@@ -376,6 +382,11 @@ struct LemniModuleTypeImplT: LemniTypeImplT<LemniModuleTypeT, LemniModuleTypeImp
 struct LemniPseudoTypeImplT: LemniTypeImplT<LemniPseudoTypeT, LemniPseudoTypeImplT>{
 	LemniPseudoTypeImplT(LemniTopType top, const LemniNat64 typeInfoIdx_, const LemniNat64 pseudoIdx)
 		: LemniTypeImplT(top, this, 0, typeInfoIdx_, "Pseudo " + std::to_string(pseudoIdx), "?" + std::to_string(pseudoIdx)){}
+};
+
+struct LemniExprTypeImplT: LemniTypeImplT<LemniExprTypeT, LemniExprTypeImplT>{
+	LemniExprTypeImplT(LemniTopType top, const LemniNat64 typeInfoIdx_)
+		: LemniTypeImplT(top, this, 0, typeInfoIdx_, "Expr", "e0"){}
 };
 
 struct LemniMetaTypeImplT: LemniTypeImplT<LemniMetaTypeT, LemniMetaTypeImplT>{

@@ -83,7 +83,7 @@ typedef struct LemniModuleResultT{
 	union {
 		LemniModule module;
 		LemniLexError lexErr;
-		LemniParseError parseErr;
+		LemniParseResultError parseErr;
 		LemniTypecheckError typeErr;
 		LemniCompileError compErr;
 	};

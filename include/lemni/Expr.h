@@ -37,6 +37,8 @@ typedef const struct LemniExprT *LemniExpr;
 
 /* RValue expression types */
 
+typedef const struct LemniPlaceholderExprT *LemniPlaceholderExpr;
+
 typedef const struct LemniApplicationExprT *LemniApplicationExpr;
 
 typedef const struct LemniAccessExprT *LemniAccessExpr;

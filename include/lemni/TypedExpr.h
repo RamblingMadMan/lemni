@@ -25,14 +25,14 @@
 #include "Operator.h"
 #include "AReal.h"
 
+/**
+ * @defgroup TypedExprs Types and functions related to typed expressions.
+ * @{
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @defgroup TypedExprs Typed expression related types and functions.
- * @{
- */
 
 LEMNI_OPAQUE_CONST_T(LemniTypedExpr);
 
@@ -42,6 +42,10 @@ LEMNI_OPAQUE_CONST_T(LemniTypedBinaryOpExpr);
 LEMNI_OPAQUE_CONST_T(LemniTypedApplicationExpr);
 
 LEMNI_OPAQUE_CONST_T(LemniTypedLiteralExpr);
+
+LEMNI_OPAQUE_CONST_T(LemniTypedMacroExpr);
+
+LEMNI_OPAQUE_CONST_T(LemniTypedPlaceholderExpr);
 
 LEMNI_OPAQUE_CONST_T(LemniTypedProductExpr);
 
@@ -86,6 +90,8 @@ LEMNI_OPAQUE_CONST_T(LemniTypedStringUTF8Expr);
 
 LEMNI_OPAQUE_CONST_T(LemniTypedTypeExpr);
 
+LEMNI_OPAQUE_CONST_T(LemniTypedRefExpr);
+
 LEMNI_OPAQUE_CONST_T(LemniTypedLValueExpr);
 LEMNI_OPAQUE_CONST_T(LemniTypedBindingExpr);
 LEMNI_OPAQUE_CONST_T(LemniTypedParamBindingExpr);
@@ -108,7 +114,7 @@ typedef struct {
 
 /**
  * @brief Destroy a typed expression previously created with a ``lemniCreateTyped*`` function.
- * @warning this function should not be used on typed expressions created during typechecking.
+ * @warning this function should not be used on typed expressions created by typechecking.
  * @param expr typed expression to destroy
  */
 void lemniDestroyTypedExpr(LemniTypedExpr expr);
@@ -155,67 +161,163 @@ uint32_t lemniTypedLambdaExprNumParams(LemniTypedLambdaExpr lambda);
 LemniTypedExpr lemniTypedLambdaExprParam(LemniTypedLambdaExpr lambda, const uint32_t idx);
 LemniTypedExpr lemniTypedLambdaExprBody(LemniTypedLambdaExpr lambda);
 
+/***
+ *  Constant literal expressions
+ ***/
 
-LemniTypedConstantExpr lemniTypedLiteralExprAsConstant(LemniTypedLiteralExpr expr);
-LemniTypedLiteralExpr lemniTypedConstantExprBase(LemniTypedConstantExpr constant);
-LemniType lemniTypedConstantExprType(LemniTypedConstantExpr constant);
+LemniTypedConstantExpr lemniTypedLiteralAsConstant(LemniTypedLiteralExpr lit);
+LemniType lemniTypedConstantType(LemniTypedConstantExpr constant);
+LemniTypedLiteralExpr lemniTypedConstantBase(LemniTypedConstantExpr constant);
+LemniTypedExpr lemniTypedConstantRoot(LemniTypedConstantExpr constant);
 
-LemniTypedNumExpr lemniTypedConstantExprAsNum(LemniTypedConstantExpr constant);
-LemniTypedConstantExpr lemniTypedNumExprBase(LemniTypedNumExpr num);
-LemniType lemniTypedNumExprType(LemniTypedNumExpr num);
+LemniTypedNumExpr lemniTypedConstantAsNum(LemniTypedConstantExpr constant);
+LemniType lemniTypedNumType(LemniTypedNumExpr num);
+LemniTypedConstantExpr lemniTypedNumBase(LemniTypedNumExpr num);
+LemniTypedExpr lemniTypedNumRoot(LemniTypedNumExpr num);
 
-LemniTypedNatExpr lemniCreateTypedNat(LemniAIntConst val);
-LemniTypedNatExpr lemniTypedNumExprAsNat(LemniTypedNumExpr num);
-LemniTypedNumExpr lemniTypedNatExprBase(LemniTypedNatExpr nat);
-LemniNatType lemniTypedNatExprType(LemniTypedNatExpr nat);
-LemniAIntConst lemniTypedNatExprValue(LemniTypedNatExpr nat);
+/***
+ * Natural literal expressions
+ ***/
 
-LemniTypedIntExpr lemniCreateTypedInt(LemniAIntConst val);
-LemniTypedIntExpr lemniTypedNumExprAsInt(LemniTypedNumExpr num);
-LemniTypedNumExpr lemniTypedIntExprBase(LemniTypedIntExpr int_);
-LemniIntType lemniTypedIntExprType(LemniTypedIntExpr int_);
-LemniAIntConst lemniTypedIntExprValue(LemniTypedIntExpr int_);
+LemniTypedNatExpr lemniTypedNumAsNat(LemniTypedNumExpr num);
+LemniTypedNumExpr lemniTypedNatBase(LemniTypedNatExpr n);
+LemniNatType lemniTypedNatType(LemniTypedNatExpr n);
 
-LemniTypedRatioExpr lemniCreateTypedRatio(LemniARatioConst val);
-LemniTypedRatioExpr lemniTypedNumExprAsRatio(LemniTypedNumExpr num);
-LemniTypedNumExpr lemniTypedRatioExprBase(LemniTypedRatioExpr ratio);
-LemniRatioType lemniTypedRatioExprType(LemniTypedRatioExpr ratio);
-LemniARatioConst lemniTypedRatioExprValue(LemniTypedRatioExpr ratio);
+LemniTypedANatExpr lemniCreateTypedANat(LemniTypeSet types, LemniAIntConst val);
+LemniTypedNat16Expr lemniCreateTypedNat16(LemniTypeSet types, LemniNat16 val);
+LemniTypedNat32Expr lemniCreateTypedNat32(LemniTypeSet types, LemniNat32 val);
+LemniTypedNat64Expr lemniCreateTypedNat64(LemniTypeSet types, LemniNat64 val);
 
-LemniTypedRealExpr lemniTypedNumExprAsReal(LemniTypedNumExpr num);
-LemniTypedNumExpr lemniTypedRealExprBase(LemniTypedRealExpr real);
-LemniRealType lemniTypedRealExprType(LemniTypedRealExpr real);
-LemniARealConst lemniTypedRealExprValue(LemniTypedRealExpr real);
+LemniAIntConst lemniTypedANatValue(LemniTypedANatExpr n);
+LemniNat16 lemniTypedNat16Value(LemniTypedNat16Expr n16);
+LemniNat32 lemniTypedNat32Value(LemniTypedNat32Expr n32);
+LemniNat64 lemniTypedNat64Value(LemniTypedNat64Expr n64);
 
-LemniTypedARealExpr lemniCreateTypedAReal(LemniARealConst val);
-LemniTypedRealExpr lemniTypedARealBase(LemniTypedARealExpr areal);
-LemniTypedExpr lemniTypedARealRoot(LemniTypedARealExpr real64);
+LemniTypedNatExpr lemniTypedANatBase(LemniTypedANatExpr n);
+LemniTypedNatExpr lemniTypedNat16Base(LemniTypedNat16Expr n16);
+LemniTypedNatExpr lemniTypedNat32Base(LemniTypedNat32Expr n32);
+LemniTypedNatExpr lemniTypedNat64Base(LemniTypedNat64Expr n64);
 
-LemniTypedReal32Expr lemniCreateTypedReal32(LemniReal32 val);
-LemniTypedRealExpr lemniTypedReal32Base(LemniTypedReal32Expr real32);
+LemniTypedExpr lemniTypedANatRoot(LemniTypedANatExpr n);
+LemniTypedExpr lemniTypedNat16Root(LemniTypedNat16Expr n16);
+LemniTypedExpr lemniTypedNat32Root(LemniTypedNat32Expr n32);
+LemniTypedExpr lemniTypedNat64Root(LemniTypedNat64Expr n64);
+
+/***
+ *  Integer literal expressions
+ ***/
+
+LemniTypedIntExpr lemniTypedNumAsInt(LemniTypedNumExpr num);
+LemniTypedNumExpr lemniTypedIntBase(LemniTypedIntExpr nat);
+LemniIntType lemniTypedIntType(LemniTypedIntExpr nat);
+
+LemniTypedAIntExpr lemniCreateTypedAInt(LemniTypeSet types, LemniAIntConst val);
+LemniTypedInt16Expr lemniCreateTypedInt16(LemniTypeSet types, LemniInt16 val);
+LemniTypedInt32Expr lemniCreateTypedInt32(LemniTypeSet types, LemniInt32 val);
+LemniTypedInt64Expr lemniCreateTypedInt64(LemniTypeSet types, LemniInt64 val);
+
+LemniTypedAIntExpr lemniTypedIntAsAInt(LemniTypedIntExpr z);
+LemniTypedInt16Expr lemniTypedIntAsInt16(LemniTypedIntExpr z);
+LemniTypedInt32Expr lemniTypedIntAsInt32(LemniTypedIntExpr z);
+LemniTypedInt64Expr lemniTypedIntAsInt64(LemniTypedIntExpr z);
+
+LemniAIntConst lemniTypedAIntValue(LemniTypedAIntExpr z);
+LemniInt16 lemniTypedInt16Value(LemniTypedInt16Expr z16);
+LemniInt32 lemniTypedInt32Value(LemniTypedInt32Expr z32);
+LemniInt64 lemniTypedInt64Value(LemniTypedInt64Expr z64);
+
+LemniTypedIntExpr lemniTypedAIntBase(LemniTypedAIntExpr z);
+LemniTypedIntExpr lemniTypedInt16Base(LemniTypedInt16Expr z16);
+LemniTypedIntExpr lemniTypedInt32Base(LemniTypedInt32Expr z32);
+LemniTypedIntExpr lemniTypedInt64Base(LemniTypedInt64Expr z64);
+
+/***
+ *  Rational literal expressions
+ ***/
+
+LemniTypedRatioExpr lemniTypedNumAsRatio(LemniTypedNumExpr num);
+LemniTypedNumExpr lemniTypedRatioBase(LemniTypedRatioExpr q);
+LemniRatioType lemniTypedRatioType(LemniTypedRatioExpr q);
+
+LemniTypedARatioExpr lemniCreateTypedARatio(LemniTypeSet types, LemniARatioConst val);
+LemniTypedRatio32Expr lemniCreateTypedRatio32(LemniTypeSet types, LemniRatio32 val);
+LemniTypedRatio64Expr lemniCreateTypedRatio64(LemniTypeSet types, LemniRatio64 val);
+LemniTypedRatio128Expr lemniCreateTypedRatio128(LemniTypeSet types, LemniRatio128 val);
+
+LemniTypedARatioExpr lemniTypedRatioAsARatio(LemniTypedRatioExpr q);
+LemniTypedRatio32Expr lemniTypedRatioAsRatio32(LemniTypedRatioExpr q);
+LemniTypedRatio64Expr lemniTypedRatioAsRatio64(LemniTypedRatioExpr q);
+LemniTypedRatio128Expr lemniTypedRatioAsRatio128(LemniTypedRatioExpr q);
+
+LemniARatioConst lemniTypedARatioValue(LemniTypedARatioExpr q);
+LemniRatio32 lemniTypedRatio32Value(LemniTypedRatio32Expr q32);
+LemniRatio64 lemniTypedRatio64Value(LemniTypedRatio64Expr q64);
+LemniRatio128 lemniTypedRatio128Value(LemniTypedRatio128Expr q128);
+
+LemniTypedRatioExpr lemniTypedARatioBase(LemniTypedARatioExpr q);
+LemniTypedRatioExpr lemniTypedRatio32Base(LemniTypedRatio32Expr q32);
+LemniTypedRatioExpr lemniTypedRatio64Base(LemniTypedRatio64Expr q64);
+LemniTypedRatioExpr lemniTypedRatio128Base(LemniTypedRatio128Expr q128);
+
+LemniTypedExpr lemniTypedARatioRoot(LemniTypedARatioExpr q);
+LemniTypedExpr lemniTypedRatio32Root(LemniTypedRatio32Expr q32);
+LemniTypedExpr lemniTypedRatio64Root(LemniTypedRatio64Expr q64);
+LemniTypedExpr lemniTypedRatio128Root(LemniTypedRatio128Expr q128);
+
+/***
+ *  Real literal expressions
+ ***/
+
+LemniTypedRealExpr lemniTypedNumAsReal(LemniTypedNumExpr num);
+LemniTypedNumExpr lemniTypedRealBase(LemniTypedRealExpr r);
+LemniRealType lemniTypedRealType(LemniTypedRealExpr r);
+
+LemniTypedARealExpr lemniCreateTypedAReal(LemniTypeSet types, LemniARealConst val);
+LemniTypedReal32Expr lemniCreateTypedReal32(LemniTypeSet types, LemniReal32 val);
+LemniTypedReal64Expr lemniCreateTypedReal64(LemniTypeSet types, LemniReal64 val);
+
+LemniARealConst lemniTypedARealValue(LemniTypedARealExpr r);
+LemniReal32 lemniTypedReal32Value(LemniTypedReal32Expr r32);
+LemniReal64 lemniTypedReal64Value(LemniTypedReal64Expr r64);
+
+LemniTypedRealExpr lemniTypedARealBase(LemniTypedARealExpr r);
+LemniTypedRealExpr lemniTypedReal32Base(LemniTypedReal32Expr r32);
+LemniTypedRealExpr lemniTypedReal64Base(LemniTypedReal64Expr r64);
+
+LemniTypedExpr lemniTypedARealRoot(LemniTypedARealExpr r);
 LemniTypedExpr lemniTypedReal32Root(LemniTypedReal32Expr real64);
-
-LemniTypedReal64Expr lemniCreateTypedReal64(LemniReal64 val);
-LemniTypedRealExpr lemniTypedReal64Base(LemniTypedReal64Expr real64);
 LemniTypedExpr lemniTypedReal64Root(LemniTypedReal64Expr real64);
 
-LemniTypedStringExpr lemniTypedConstantExprAsString(LemniTypedConstantExpr constant);
-LemniTypedConstantExpr lemniTypedStringExprBase(LemniTypedStringExpr str);
-LemniType lemniTypedStringExprType(LemniTypedStringExpr str);
+/***
+ *  String literals expressions
+ ***/
 
-LemniTypedStringASCIIExpr lemniCreateTypedStringASCII(LemniStr val);
-LemniTypedStringASCIIExpr lemniTypedStringExprAsASCII(LemniTypedStringExpr str);
-LemniTypedStringExpr lemniTypedStringASCIIExprBase(LemniTypedStringASCIIExpr ascii);
-LemniTypedExpr lemniTypedStringASCIIExprRoot(LemniTypedStringASCIIExpr utf8);
-LemniStringASCIIType lemniTypedStringASCIIExprType(LemniTypedStringASCIIExpr ascii);
-LemniStr lemniTypedStringASCIIExprValue(LemniTypedStringASCIIExpr ascii);
+LemniTypedStringExpr lemniTypedConstantAsString(LemniTypedConstantExpr constant);
+LemniTypedConstantExpr lemniTypedStringBase(LemniTypedStringExpr str);
+LemniType lemniTypedStringType(LemniTypedStringExpr str);
 
-LemniTypedStringUTF8Expr lemniCreateTypedStringUTF8(LemniStr val);
-LemniTypedStringUTF8Expr lemniTypedStringExprAsUTF8(LemniTypedStringExpr str);
-LemniTypedStringExpr lemniTypedStringUTF8ExprBase(LemniTypedStringUTF8Expr utf8);
-LemniTypedExpr lemniTypedStringUTF8ExprRoot(LemniTypedStringUTF8Expr utf8);
-LemniStringUTF8Type lemniTypedStringUTF8ExprType(LemniTypedStringUTF8Expr utf8);
-LemniStr lemniTypedStringUTF8ExprValue(LemniTypedStringUTF8Expr utf8);
+/***
+ *  ASCII String literal expressions
+ ***/
+
+LemniTypedStringASCIIExpr lemniCreateTypedStringASCII(LemniTypeSet types, LemniStrASCII val);
+LemniTypedStringASCIIExpr lemniTypedStringAsASCII(LemniTypedStringExpr str);
+LemniStrASCII lemniTypedStringASCIIValue(LemniTypedStringASCIIExpr ascii);
+LemniStringASCIIType lemniTypedStringASCIIType(LemniTypedStringASCIIExpr ascii);
+LemniTypedStringExpr lemniTypedStringASCIIBase(LemniTypedStringASCIIExpr ascii);
+LemniTypedExpr lemniTypedStringASCIIRoot(LemniTypedStringASCIIExpr ascii);
+
+/***
+ *  UTF8 String literal expressions
+ ***/
+
+LemniTypedStringUTF8Expr lemniCreateTypedStringUTF8(LemniTypeSet types, LemniStrUTF8 val);
+LemniTypedStringUTF8Expr lemniTypedStringAsUTF8(LemniTypedStringExpr str);
+LemniStrUTF8 lemniTypedStringUTF8Value(LemniTypedStringUTF8Expr utf8);
+LemniStringUTF8Type lemniTypedStringUTF8Type(LemniTypedStringUTF8Expr utf8);
+LemniTypedStringExpr lemniTypedStringUTF8Base(LemniTypedStringUTF8Expr utf8);
+LemniTypedExpr lemniTypedStringUTF8Root(LemniTypedStringUTF8Expr utf8);
+
 
 LemniTypedLValueExpr lemniTypedExprAsLValue(LemniTypedExpr expr);
 LemniTypedExpr lemniTypedLValueExprBase(LemniTypedLValueExpr lvalue);
@@ -231,18 +333,93 @@ uint32_t lemniTypedFnDefExprNumParams(LemniTypedFnDefExpr fnDef);
 LemniTypedExpr lemniTypedFnDefExprParam(LemniTypedFnDefExpr fnDef, const uint32_t idx);
 LemniTypedExpr lemniTypedFnDefExprBody(LemniTypedFnDefExpr fnDef);
 
-/**
- * @}
- */
-
 #ifdef __cplusplus
 }
 
 #ifndef LEMNI_NO_CPP
 namespace lemni{
 	using TypedExpr = LemniTypedExpr;
+
+	class TypedConst{
+		public:
+			TypedConst() noexcept
+				: TypedConst(nullptr){}
+
+			TypedConst(TypedConst &&other) noexcept
+				: m_val(other.m_val)
+			{
+				other.m_val = nullptr;
+			}
+
+			TypedConst(const TypedConst&) = delete;
+
+			~TypedConst(){
+				if(m_val) lemniDestroyTypedExpr(lemniTypedConstantRoot(m_val));
+			}
+
+			operator LemniTypedExpr() const noexcept{ return lemniTypedConstantRoot(m_val); }
+			operator LemniTypedLiteralExpr() const noexcept{ return lemniTypedConstantBase(m_val); }
+			operator LemniTypedConstantExpr() const noexcept{ return m_val; }
+
+			TypedConst &operator=(TypedConst &&other) noexcept{
+				if(m_val) lemniDestroyTypedExpr(lemniTypedConstantRoot(m_val));
+				m_val = other.m_val;
+				other.m_val = nullptr;
+				return *this;
+			}
+
+			TypedConst &operator=(const TypedConst&) = delete;
+
+			static TypedConst from(LemniTypedConstantExpr const_) noexcept{
+				return TypedConst(const_);
+			}
+
+			LemniType type() const noexcept{ return lemniTypedConstantType(m_val); }
+
+		private:
+			explicit TypedConst(LemniTypedConstantExpr const_) noexcept
+				: m_val(const_){}
+
+			LemniTypedConstantExpr m_val;
+	};
+
+	namespace detail{
+		template<typename T, auto F> struct TypedValueCreatorMap{
+			static auto create(LemniTypeSet types, T val) noexcept{ return TypedConst::from(F(types, val)); }
+		};
+
+		template<typename T> struct TypedValueCreator;
+
+		template<> struct TypedValueCreator<LemniNat16>: TypedValueCreatorMap<LemniNat16, lemniCreateTypedNat16>{};
+		template<> struct TypedValueCreator<LemniNat32>: TypedValueCreatorMap<LemniNat32, lemniCreateTypedNat32>{};
+		template<> struct TypedValueCreator<LemniNat64>: TypedValueCreatorMap<LemniNat64, lemniCreateTypedNat64>{};
+
+		template<> struct TypedValueCreator<LemniAIntConst>: TypedValueCreatorMap<LemniAIntConst, lemniCreateTypedAInt>{};
+		template<> struct TypedValueCreator<LemniInt16>: TypedValueCreatorMap<LemniInt16, lemniCreateTypedInt16>{};
+		template<> struct TypedValueCreator<LemniInt32>: TypedValueCreatorMap<LemniInt32, lemniCreateTypedInt32>{};
+		template<> struct TypedValueCreator<LemniInt64>: TypedValueCreatorMap<LemniInt64, lemniCreateTypedInt64>{};
+
+		template<> struct TypedValueCreator<LemniARatioConst>: TypedValueCreatorMap<LemniARatioConst, lemniCreateTypedARatio>{};
+		template<> struct TypedValueCreator<LemniRatio32>: TypedValueCreatorMap<LemniRatio32, lemniCreateTypedRatio32>{};
+		template<> struct TypedValueCreator<LemniRatio64>: TypedValueCreatorMap<LemniRatio64, lemniCreateTypedRatio64>{};
+		template<> struct TypedValueCreator<LemniRatio128>: TypedValueCreatorMap<LemniRatio64, lemniCreateTypedRatio128>{};
+
+		template<> struct TypedValueCreator<LemniARealConst>: TypedValueCreatorMap<LemniARealConst, lemniCreateTypedAReal>{};
+		template<> struct TypedValueCreator<LemniReal32>: TypedValueCreatorMap<LemniReal32, lemniCreateTypedReal32>{};
+		template<> struct TypedValueCreator<LemniReal64>: TypedValueCreatorMap<LemniReal64, lemniCreateTypedReal64>{};
+
+		template<> struct TypedValueCreator<LemniStrASCII>: TypedValueCreatorMap<LemniStrASCII, lemniCreateTypedStringASCII>{};
+		template<> struct TypedValueCreator<LemniStrUTF8>: TypedValueCreatorMap<LemniStrUTF8, lemniCreateTypedStringUTF8>{};
+	}
+
+	template<typename T>
+	TypedConst lit(LemniTypeSet types, T t){ return detail::TypedValueCreator<T>::create(types, t); }
 }
 #endif // !LEMNI_NO_CPP
 #endif // __cplusplus
+
+/**
+ * @}
+ */
 
 #endif // !LEMNI_TYPEDEXPR_H

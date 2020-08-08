@@ -269,6 +269,7 @@ struct LemniTypeSetT{
 		, top(createTypeInfo(topTypeInfo()))
 		, bottom(&top, createTypeInfo(bottomTypeInfo()))
 		, meta(&top, createTypeInfo(metaTypeInfo()))
+		, expr(&top, createTypeInfo(exprTypeInfo()))
 		, unit(&top, createTypeInfo(unitTypeInfo()))
 		, bool_(&top, createTypeInfo(boolTypeInfo()))
 		, number(&top, createTypeInfo(numberTypeInfo()))
@@ -297,6 +298,7 @@ struct LemniTypeSetT{
 	LemniTopTypeImplT top;
 	LemniBottomTypeImplT bottom;
 	LemniMetaTypeImplT meta;
+	LemniExprTypeImplT expr;
 	LemniUnitTypeImplT unit;
 	LemniBoolTypeImplT bool_;
 	LemniNumberTypeImplT number;
@@ -548,6 +550,8 @@ LemniPseudoType lemniTypeSetGetPseudo(LemniTypeSet types, const LemniTypeInfo us
 
 	return res.get();
 }
+
+LemniExprType lemniTypeSetGetExpr(LemniTypeSet types){ return &types->expr; }
 
 LemniMetaType lemniTypeSetGetMeta(LemniTypeSet types){ return &types->meta; }
 
@@ -1001,14 +1005,16 @@ namespace {
 }
 
 LemniType lemniTypeMakeSigned(LemniTypeSet types, LemniType type){
-	const auto info = &types->typeInfos[type->typeIdx()];
-	if(lemniTypeInfoHasClass(info, LEMNI_TYPECLASS_SCALAR) && (info->info.scalar.traits & LEMNI_SCALAR_RANGE)){
-		if(auto nat = lemniTypeAsNat(type)){
-			return lemniTypeSetGetInt(types, nat->numBits() + 1); // add sign bit
-		}
-		else{
-			return type;
-		}
+	if(auto nat = dynamic_cast<LemniNatType>(type)){
+		return lemniTypeSetGetInt(types, nat->numBits() + 1);
+	}
+	else if(
+		   dynamic_cast<LemniIntType>(type) ||
+		   dynamic_cast<LemniRatioType>(type) ||
+		   dynamic_cast<LemniRealType>(type) ||
+		   dynamic_cast<LemniNumberType>(type)
+	){
+		return type;
 	}
 	else{
 		return nullptr;

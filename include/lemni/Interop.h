@@ -37,7 +37,10 @@ extern "C" {
 
 typedef const struct LemniUnitT *const LemniUnit;
 
-typedef bool LemniBool;
+typedef enum LemniBoolT : uint8_t{
+	LEMNI_FALSE = 0,
+	LEMNI_TRUE = 1
+} LemniBool;
 
 typedef uint16_t LemniNat16;
 typedef uint32_t LemniNat32;

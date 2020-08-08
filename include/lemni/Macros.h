@@ -192,4 +192,8 @@ typedef enum name##T{\
 	prefix##_COUNT = __COUNTER__ - prefix##_BASE\
 } name
 
+#define LEMNI_BITFLAG_ENUM_BASE(prefix) prefix##_BASE = (__COUNTER__ + 1)
+#define LEMNI_BITFLAG_ENUM_CASE(prefix, name) prefix##_##name = 1 << (__COUNTER__ - prefix##_BASE)
+#define LEMNI_BITFLAG_ENUM_COUNT(prefix) prefix##_COUNT = (__COUNTER__ - prefix##_BASE)
+
 #endif // !LEMNI_MACROS_H

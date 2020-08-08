@@ -183,19 +183,24 @@ LemniModuleResult lemniLoadModule(LemniModuleMap mods, const LemniStr id){
 		toks.emplace_back(lexRes.token);
 	}
 
-	auto parseState = lemni::ParseState(toks.data(), toks.size());
+	auto parseState = lemni::ParseState();
 
 	std::vector<LemniExpr> exprs;
 
-	while(parseState.numTokens() > 0){
-		auto parseRes = lemniParse(parseState);
+	LemniNat64 numToksRem = toks.size();
+	const LemniToken *toksRem = toks.data();
+
+	while(numToksRem > 0){
+		auto parseRes = lemniParse(parseState, numToksRem, toksRem);
 		if(parseRes.hasError){
 			res.resType = LEMNI_MODULE_PARSE_ERROR;
 			res.parseErr = parseRes.error;
 			return res;
 		}
 
-		exprs.emplace_back(parseRes.expr);
+		exprs.emplace_back(parseRes.res.expr);
+		numToksRem = parseRes.res.numRem;
+		toksRem = parseRes.res.rem;
 	}
 
 	auto mod = lemniCreateModule(mods, id);

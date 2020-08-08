@@ -22,40 +22,32 @@
 #include <new>
 #include <memory>
 #include <vector>
+#include <string_view>
+using namespace std::string_view_literals;
 
 #include "lemni/parse.h"
 
 #include "Expr.hpp"
 
 struct LemniParseStateT{
-	const LemniToken *tokens;
-	size_t numTokens;
+	~LemniParseStateT(){
+		for(auto expr : exprs){
+			deleteExpr(expr);
+		}
+	}
 
-	std::vector<std::unique_ptr<LemniExprT>> exprs;
+	std::vector<LemniExpr> exprs;
 	std::vector<std::unique_ptr<std::string>> errStrs;
 };
 
-LemniParseState lemniCreateParseState(const LemniToken *const tokens, const size_t n){
+LemniParseState lemniCreateParseState(){
 	auto mem = std::malloc(sizeof(LemniParseStateT));
-	auto p = new(mem) LemniParseStateT;
-
-	p->tokens = tokens;
-	p->numTokens = n;
-
-	return p;
+	return new(mem) LemniParseStateT;
 }
 
 void lemniDestroyParseState(LemniParseState state){
 	std::destroy_at(state);
 	std::free(state);
-}
-
-const LemniToken *lemniParseStateTokens(LemniParseStateConst state){
-	return state->tokens;
-}
-
-size_t lemniParseStateNumTokens(LemniParseStateConst state){
-	return state->numTokens;
 }
 
 namespace {
@@ -72,26 +64,26 @@ namespace {
 		return ret;
 	}
 
-	inline LemniParseResult makeResult(LemniExpr expr){
+	inline LemniParseResult makeResult(LemniExpr expr, const LemniNat64 numRem, const LemniToken *const rem){
 		LemniParseResult ret;
 		ret.hasError = false;
-		ret.expr = expr;
+		ret.res = { .expr = expr, .numRem = numRem, .rem = rem };
+		return ret;
+	}
+
+	inline LemniParseResult makeResultIt(LemniExpr expr, const LemniToken *const it, const LemniToken *const end){
+		LemniParseResult ret;
+		ret.hasError = false;
+		ret.res = { .expr = expr, .numRem = static_cast<LemniNat64>(end - it), .rem = it };
 		return ret;
 	}
 
 	template<typename T, typename ... Args>
 	inline T *createExpr(LemniParseState state, Args &&... args){
-		auto ptr = std::make_unique<T>(std::forward<Args>(args)...);
-		auto ret = ptr.get();
+		auto ptr = newExpr<T>(std::forward<Args>(args)...);
 		auto insertIt = std::lower_bound(begin(state->exprs), end(state->exprs), ptr);
-		state->exprs.insert(insertIt, std::move(ptr));
-		return ret;
-	}
-
-	inline void setRemainder(LemniParseState state, const LemniToken *const beg, const LemniToken *const end){
-		auto numTokens = static_cast<size_t>(std::distance(beg, end));
-		state->tokens = beg;
-		state->numTokens = numTokens;
+		state->exprs.insert(insertIt, ptr);
+		return ptr;
 	}
 
 	inline bool isDelimTok(const LemniToken *it, const LemniToken *end){
@@ -131,7 +123,7 @@ namespace {
 		else if(it->text != LEMNICSTR(")"))
 			return std::make_pair(makeError(state, loc, "Unexpected delimiter '" + lemni::toStdStr(it->text) + "' in paren expression"), it);
 
-		auto headExpr = valueRet.first.expr;
+		auto headExpr = valueRet.first.res.expr;
 
 		std::vector<LemniExpr> elements;
 
@@ -155,10 +147,7 @@ namespace {
 
 		auto delimIt = it;
 
-		setRemainder(state, ++it, end);
-
-		return std::make_pair(makeResult(tupleExpr), delimIt);
-		//return parseLeading(state, loc, ++delimIt, end, tupleExpr);
+		return std::make_pair(makeResultIt(tupleExpr, ++it, end), delimIt);
 	}
 
 	std::pair<LemniParseResult, const LemniToken*> parseFnDef(LemniParseState state, const LemniToken *it, const LemniToken *const end, const LemniToken *idTok, LemniExpr parenExpr){
@@ -224,7 +213,7 @@ namespace {
 				if(innerRes.first.hasError)
 					return innerRes;
 
-				body.emplace_back(innerRes.first.expr);
+				body.emplace_back(innerRes.first.res.expr);
 
 				it = innerRes.second;
 
@@ -258,7 +247,7 @@ namespace {
 			if(innerRes.first.hasError)
 				return innerRes;
 
-			bodyExpr = innerRes.first.expr;
+			bodyExpr = innerRes.first.res.expr;
 
 			it = innerRes.second;
 		}
@@ -268,9 +257,20 @@ namespace {
 		auto delimIt = it;
 		if(it != end) ++it;
 
-		setRemainder(state, it, end);
+		return std::make_pair(makeResultIt(fnDef, it, end), delimIt);
+	}
 
-		return std::make_pair(makeResult(fnDef), delimIt);
+	// starts at first token after '`'
+	std::pair<LemniParseResult, const LemniToken*> parseMacro(LemniParseState state, const LemniToken *it, const LemniToken *const end, const LemniToken *start){
+		auto exprBeg = it;
+		auto exprEnd = exprBeg;
+		while((exprEnd != end) && (exprEnd->text != "`"sv)) ++exprEnd;
+
+		if(exprEnd == end){
+			return std::make_pair(makeError(state, start->loc, "Unexpected end of source in macro expression"), it);
+		}
+
+		return std::make_pair(makeError(state, start->loc, "Macro expression parsing currently unimplemented"), it);
 	}
 
 	std::pair<LemniParseResult, const LemniToken*> parseId(LemniParseState state, const LemniToken *it, const LemniToken *const end, const LemniToken *idTok){
@@ -278,25 +278,41 @@ namespace {
 			if(idTok->text == LEMNICSTR("import")){
 				return std::make_pair(makeError(state, idTok->loc, "unexpected end of tokens in import expression"), it);
 			}
-
-			auto ref = createExpr<LemniRefExprT>(state, idTok->loc, std::string(idTok->text.ptr, idTok->text.len));
-			setRemainder(state, it, end);
-			return std::make_pair(makeResult(ref), it);
+			else if(idTok->text == LEMNICSTR("_")){
+				auto placeholder = createExpr<LemniPlaceholderExprT>(state, idTok->loc);
+				return std::make_pair(makeResult(placeholder, 0, it), it);
+			}
+			else{
+				auto ref = createExpr<LemniRefExprT>(state, idTok->loc, std::string(idTok->text.ptr, idTok->text.len));
+				return std::make_pair(makeResult(ref, 0, it), it);
+			}
 		}
 		else if(it->type == LEMNI_TOKEN_BRACKET_OPEN){
 			if(idTok->text == LEMNICSTR("import")){
 				return std::make_pair(makeError(state, idTok->loc, "can not define a function with the name 'import'"), it);
 			}
+			else if(idTok->text == LEMNICSTR("_")){
+				return std::make_pair(makeError(state, idTok->loc, "can not define a function with the name '_'"), it);
+			}
+			else{
+				auto parenIt = it;
+				auto parenRes = parseParenInner(state, parenIt->loc, ++it, end);
+				if(parenRes.first.hasError) return parenRes;
 
-			auto parenIt = it;
-			auto parenRes = parseParenInner(state, parenIt->loc, ++it, end);
-			if(parenRes.first.hasError) return parenRes;
-
-			return parseFnDef(state, parenRes.second + 1, end, idTok, parenRes.first.expr);
+				return parseFnDef(state, parenRes.first.res.rem, end, idTok, parenRes.first.res.expr);
+			}
 		}
 		else{
-			auto ref = createExpr<LemniRefExprT>(state, idTok->loc, std::string(idTok->text.ptr, idTok->text.len));
-			return parseLeading(state, idTok->loc, it, end, ref);
+			LemniExpr value = nullptr;
+
+			if(idTok->text == LEMNICSTR("_")){
+				value = createExpr<LemniPlaceholderExprT>(state, idTok->loc);
+			}
+			else{
+				value = createExpr<LemniRefExprT>(state, idTok->loc, std::string(idTok->text.ptr, idTok->text.len));
+			}
+
+			return parseLeading(state, idTok->loc, it, end, value);
 		}
 	}
 
@@ -305,7 +321,7 @@ namespace {
 		LemniStr str = intTok->text;
 
 		switch(intTok->type){
-			case LEMNI_TOKEN_NAT: break;
+			case LEMNI_TOKEN_INT: break;
 
 			case LEMNI_TOKEN_HEX:{
 				base = 16;
@@ -332,8 +348,7 @@ namespace {
 		LemniIntExprT *int_ = createExpr<LemniIntExprT>(state, intTok->loc, str, base);
 
 		if(it == end){
-			setRemainder(state, it, end);
-			return std::make_pair(makeResult(int_), it);
+			return std::make_pair(makeResult(int_, 0, it), it);
 		}
 		else if(it->type == LEMNI_TOKEN_BRACKET_OPEN){
 			return std::make_pair(makeError(state, it->loc, "Function names must start with an alphabetic character or underscore"), it);
@@ -346,8 +361,7 @@ namespace {
 		auto real = createExpr<LemniRealExprT>(state, realTok->loc, realTok->text);
 
 		if(it == end){
-			setRemainder(state, it, end);
-			return std::make_pair(makeResult(real), it);
+			return std::make_pair(makeResult(real, 0, it), it);
 		}
 		else if(it->type == LEMNI_TOKEN_BRACKET_OPEN){
 			return std::make_pair(makeError(state, it->loc, "Function names must start with an alphabetic character or underscore"), it);
@@ -361,8 +375,7 @@ namespace {
 		auto str = createExpr<LemniStrExprT>(state, strTok->loc, lemni::toStdStr(strTok->text));
 
 		if(it == end){
-			setRemainder(state, it, end);
-			return std::make_pair(makeResult(str), it);
+			return std::make_pair(makeResult(str, 0, it), it);
 		}
 		else if(it->type == LEMNI_TOKEN_BRACKET_OPEN){
 			return std::make_pair(makeError(state, it->loc, "Function names must start with an alphabetic character or underscore"), it);
@@ -372,7 +385,6 @@ namespace {
 		}
 	}
 
-	// Ordering/BEDMAS will be done in the typecheck phase
 	std::pair<LemniParseResult, const LemniToken*> parseBinop(LemniParseState state, LemniLocation loc, const LemniToken *it, const LemniToken *const end, LemniExpr lhs, const LemniToken *opTok){
 		if(it == end){
 			return std::make_pair(makeError(state, opTok->loc, "Unexpected end of tokens after binary operator"), it);
@@ -409,9 +421,33 @@ namespace {
 		if(rhsRet.first.hasError)
 			return rhsRet;
 
-		auto binaryOp = createExpr<LemniBinaryOpExprT>(state, loc, op, lhs, rhsRet.first.expr);
+		auto rhs = rhsRet.first.res.expr;
 
-		return std::make_pair(makeResult(binaryOp), rhsRet.second);
+		// TODO: More robust (not just left-to-right) ordering/BEDMAS
+
+		if(auto binopRhs = dynamic_cast<LemniBinaryOpExpr>(rhs)){
+			if(lemniBinaryOpPrecedence(op) < lemniBinaryOpPrecedence(binopRhs->op)){
+				// do this op first (as operand of other op)
+				lhs = createExpr<LemniBinaryOpExprT>(state, loc, op, lhs, binopRhs->lhs);
+				op = binopRhs->op;
+				rhs = binopRhs->rhs;
+			}
+		}
+
+		/*
+		if(auto binopLhs = dynamic_cast<LemniBinaryOpExpr>(lhs)){
+			if(lemniBinaryOpPrecedence(op) < lemniBinaryOpPrecedence(binopLhs->op)){
+				// do this op first (as operand of other op)
+				rhs = createExpr<LemniBinaryOpExprT>(state, loc, op, binopLhs->rhs, rhs);
+				lhs = binopLhs->lhs;
+				op = binopLhs->op;
+			}
+		}
+		*/
+
+		auto binaryOp = createExpr<LemniBinaryOpExprT>(state, loc, op, lhs, rhs);
+
+		return std::make_pair(makeResult(binaryOp, rhsRet.first.res.numRem, rhsRet.first.res.rem), rhsRet.second);
 	}
 
 	std::pair<LemniParseResult, const LemniToken*> parseUnaryOp(LemniParseState state, LemniLocation loc, const LemniToken *it, const LemniToken *const end, const LemniToken *opTok){
@@ -433,14 +469,14 @@ namespace {
 		if(rhsRet.first.hasError)
 			return rhsRet;
 
-		if(auto rhsBinaryOp = lemniExprAsBinaryOp(rhsRet.first.expr)){
+		if(auto rhsBinaryOp = lemniExprAsBinaryOp(rhsRet.first.res.expr)){
 			auto unaryOpExpr = createExpr<LemniUnaryOpExprT>(state, loc, unaryOp, rhsBinaryOp->lhs);
 			auto resultExpr = createExpr<LemniBinaryOpExprT>(state, loc, rhsBinaryOp->op, unaryOpExpr, rhsBinaryOp->rhs);
-			return std::make_pair(makeResult(resultExpr), rhsRet.second);
+			return std::make_pair(makeResult(resultExpr, rhsRet.first.res.numRem, rhsRet.first.res.rem), rhsRet.second);
 		}
 		else{
-			auto unaryOpExpr = createExpr<LemniUnaryOpExprT>(state, loc, unaryOp, rhsRet.first.expr);
-			return std::make_pair(makeResult(unaryOpExpr), rhsRet.second);
+			auto unaryOpExpr = createExpr<LemniUnaryOpExprT>(state, loc, unaryOp, rhsRet.first.res.expr);
+			return std::make_pair(makeResult(unaryOpExpr, rhsRet.first.res.numRem, rhsRet.first.res.rem), rhsRet.second);
 		}
 	}
 
@@ -451,7 +487,7 @@ namespace {
 			return argsRet;
 
 		auto delimIt = argsRet.second;
-		auto argsExpr = argsRet.first.expr;
+		auto argsExpr = argsRet.first.res.expr;
 
 		std::vector<LemniExpr> args;
 
@@ -465,7 +501,7 @@ namespace {
 			args.emplace_back(argsBinop->lhs);
 			auto app = createExpr<LemniApplicationExprT>(state, loc, fn, std::move(args));
 			auto ret = createExpr<LemniBinaryOpExprT>(state, loc, argsBinop->op, app, argsBinop->rhs);
-			return std::make_pair(makeResult(ret), delimIt);
+			return std::make_pair(makeResult(ret, argsRet.first.res.numRem, argsRet.first.res.rem), delimIt);
 		}
 		else{
 			args.emplace_back(argsExpr);
@@ -473,7 +509,7 @@ namespace {
 
 		auto app = createExpr<LemniApplicationExprT>(state, loc, fn, std::move(args));
 
-		return std::make_pair(makeResult(app), delimIt);
+		return std::make_pair(makeResult(app, argsRet.first.res.numRem, argsRet.first.res.rem), delimIt);
 	}
 
 	// starts on first token after ','
@@ -501,11 +537,11 @@ namespace {
 
 		it = tailRes.second;
 
-		if(auto list = lemniExprAsCommaList(tailRes.first.expr)){
+		if(auto list = lemniExprAsCommaList(tailRes.first.res.expr)){
 			elems.insert(begin(elems), cbegin(list->elements), cend(list->elements));
 		}
 		else{
-			elems.emplace_back(tailRes.first.expr);
+			elems.emplace_back(tailRes.first.res.expr);
 		}
 
 		while((it != end) && (it->type == LEMNI_TOKEN_NEWLINE)){
@@ -529,11 +565,11 @@ namespace {
 
 							it = tailRes.second;
 
-							if(auto list = lemniExprAsCommaList(tailRes.first.expr)){
+							if(auto list = lemniExprAsCommaList(tailRes.first.res.expr)){
 								elems.insert(cend(elems), cbegin(list->elements), cend(list->elements));
 							}
 							else{
-								elems.emplace_back(tailRes.first.expr);
+								elems.emplace_back(tailRes.first.res.expr);
 							}
 						}
 						else{
@@ -552,9 +588,7 @@ namespace {
 
 		auto list = createExpr<LemniCommaListExprT>(state, loc, std::move(elems));
 
-		setRemainder(state, it, end);
-
-		return std::make_pair(makeResult(list), it);
+		return std::make_pair(makeResultIt(list, it, end), it);
 	}
 
 	std::pair<LemniParseResult, const LemniToken*> parseAccess(LemniParseState state, LemniLocation loc, const LemniToken *it, const LemniToken *const end, LemniExpr lhs){
@@ -584,30 +618,38 @@ namespace {
 	}
 
 	std::pair<LemniParseResult, const LemniToken*> parseLeading(LemniParseState state, LemniLocation loc, const LemniToken *it, const LemniToken *const end, LemniExpr value){
-		if(it == end){
-			setRemainder(state, it, end);
-			return std::make_pair(makeResult(value), it);
+		bool hasSpace = false;
+
+		if((it != end) && (it->type == LEMNI_TOKEN_SPACE)){
+			hasSpace = true;
+			do{
+				++it;
+			} while((it != end) && (it->type == LEMNI_TOKEN_SPACE));
 		}
 
-		const bool hasSpace = it->type == LEMNI_TOKEN_SPACE;
-		if(hasSpace) ++it;
+		if((it != end) && (it->type == LEMNI_TOKEN_COMMENT_LINE)){
+			do {
+				++it;
+			} while((it != end) && (it->type == LEMNI_TOKEN_COMMENT_LINE));
 
-		while((it != end) && (it->type == LEMNI_TOKEN_SPACE)){
-			++it;
+			// TODO: check if commented lines continues on indented
+			bool continued = false;
+
+			if(!continued){
+				return std::make_pair(makeResultIt(value, it, end), it);
+			}
 		}
 
 		if(it == end){
-			setRemainder(state, it, end);
-			return std::make_pair(makeResult(value), it);
+			return std::make_pair(makeResult(value, 0, it), it);
 		}
 		else if(it->type == LEMNI_TOKEN_NEWLINE){
-			auto newlineIt = it;
-			setRemainder(state, ++it, end);
-			return std::make_pair(makeResult(value), newlineIt);
+			auto delimIt = it;
+			return std::make_pair(makeResultIt(value, ++it, end), delimIt);
 		}
 		else if(it->type == LEMNI_TOKEN_BRACKET_CLOSE){
-			setRemainder(state, it+1, end);
-			return std::make_pair(makeResult(value), it);
+			auto delimIt = it;
+			return std::make_pair(makeResultIt(value, ++it, end), delimIt);
 		}
 		else if(!hasSpace && (it->text == LEMNICSTR("."))){
 			// member access
@@ -626,8 +668,12 @@ namespace {
 	}
 
 	std::pair<LemniParseResult, const LemniToken*> parseInner(LemniParseState state, const LemniToken *it, const LemniToken *const end){
+		while((it != end) && (it->type == LEMNI_TOKEN_COMMENT_LINE)){
+			++it;
+		}
+
 		if(it == end){
-			return std::make_pair(makeResult(nullptr), it);
+			return std::make_pair(makeResult(nullptr, 0, it), it);
 		}
 
 		switch(it->type){
@@ -640,7 +686,7 @@ namespace {
 					}
 					else{
 						it = parenRet.second;
-						return parseLeading(state, parenIt->loc, ++it, end, parenRet.first.expr);
+						return parseLeading(state, parenIt->loc, ++it, end, parenRet.first.res.expr);
 					}
 				}
 				else{
@@ -649,7 +695,8 @@ namespace {
 			}
 
 			case LEMNI_TOKEN_BRACKET_CLOSE:{
-				return std::make_pair(makeResult(nullptr), it);
+				auto delimIt = it;
+				return std::make_pair(makeResultIt(nullptr, ++it, end), delimIt);
 			}
 
 			case LEMNI_TOKEN_INDENT:{
@@ -657,7 +704,8 @@ namespace {
 			}
 
 			case LEMNI_TOKEN_DEINDENT:{
-				return std::make_pair(makeResult(nullptr), it);
+				auto delimIt = it;
+				return std::make_pair(makeResultIt(nullptr, ++it, end), delimIt);
 			}
 
 			case LEMNI_TOKEN_ID:{
@@ -665,7 +713,7 @@ namespace {
 				return parseId(state, ++it, end, idTok);
 			}
 
-			case LEMNI_TOKEN_NAT:
+			case LEMNI_TOKEN_INT:
 			case LEMNI_TOKEN_HEX:
 			case LEMNI_TOKEN_OCTAL:
 			case LEMNI_TOKEN_BINARY:{
@@ -680,7 +728,12 @@ namespace {
 
 			case LEMNI_TOKEN_OP:{
 				auto opTok = it;
-				return parseUnaryOp(state, opTok->loc, ++it, end, opTok);
+				if(opTok->text == "`"sv){
+					return std::make_pair(makeError(state, opTok->loc, "Macro expressions unimplemented"), it);
+				}
+				else{
+					return parseUnaryOp(state, opTok->loc, ++it, end, opTok);
+				}
 			}
 
 			case LEMNI_TOKEN_STR:{
@@ -694,11 +747,11 @@ namespace {
 	}
 }
 
-LemniParseResult lemniParse(LemniParseState state){
-	auto it = state->tokens;
-	auto end = state->tokens + state->numTokens;
+LemniParseResult lemniParse(LemniParseState state, const LemniNat64 numTokens, const LemniToken *const tokens){
+	auto it = tokens;
+	auto end = tokens + numTokens;
 
-	if(it == end) return makeResult(nullptr);
+	if(it == end) return makeResult(nullptr, 0, it);
 
 	auto ret = parseInner(state, it, end);
 

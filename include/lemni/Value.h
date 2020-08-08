@@ -29,6 +29,8 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+
 typedef const struct LemniValueT *LemniValue;
 typedef const struct LemniValueT *LemniValueConst;
 
@@ -71,7 +73,7 @@ LemniValue lemniCreateValueModule(LemniModule handle);
 
 LemniValue lemniCreateValueUnit(void);
 
-LemniValue lemniCreateValueBool(const LemniBool b);
+LemniValue lemniCreateValueBool(const bool b);
 
 LemniValue lemniCreateValueFn(LemniTypeFn typeFn, LemniEvalFn fn, void *const ptr, LemniEvalState state, LemniEvalBindings bindings);
 
@@ -145,7 +147,8 @@ namespace lemni{
 
 		template<> struct ValueCreator<LemniUnit>{ static LemniValue create(LemniUnit){ return lemniCreateValueUnit(); } };
 
-		template<> struct ValueCreator<LemniBool>{ static LemniValue create(LemniBool v){ return lemniCreateValueBool(v); } };
+		template<> struct ValueCreator<bool>{ static LemniValue create(bool v){ return lemniCreateValueBool(v); } };
+		template<> struct ValueCreator<LemniBool>{ static LemniValue create(LemniBool v){ return lemniCreateValueBool(v == LEMNI_TRUE); } };
 
 		template<> struct ValueCreator<LemniNat16>{ static LemniValue create(LemniNat16 v){ return lemniCreateValueNat16(v); } };
 		template<> struct ValueCreator<LemniNat32>{ static LemniValue create(LemniNat32 v){ return lemniCreateValueNat32(v); } };
