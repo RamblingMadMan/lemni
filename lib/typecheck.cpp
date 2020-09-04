@@ -794,19 +794,31 @@ LemniTypedModuleExpr lemniCreateTypedModule(LemniTypecheckState state, const Lem
 LemniTypedExtFnDeclExpr lemniCreateTypedExtFn(
 	LemniTypecheckState state,
 	const LemniStr name, void *const ptr,
-	const LemniType resultType,
+	LemniType resultType,
 	const LemniNat64 numParams,
-	const LemniType *const paramTypes,
+	LemniType *const paramTypes,
 	const LemniStr *const paramNames
 ){
-	std::vector<std::pair<std::string, LemniType>> paramsVec;
-	paramsVec.reserve(numParams);
+	LemniFunctionType fnType = nullptr;
 
-	for(LemniNat64 i = 0; i < numParams; i++){
-		paramsVec.emplace_back(lemni::toStdStr(paramNames[i]), paramTypes[i]);
+	if(numParams == 0){
+		auto unitType = lemniTypeSetGetUnit(state->types);
+		LemniType unitParamTypes[] = { unitType };
+
+		fnType = lemniTypeSetGetFunction(state->types, resultType, unitParamTypes, 1);
+	}
+	else{
+		fnType = lemniTypeSetGetFunction(state->types, resultType, paramTypes, numParams);
 	}
 
-	auto expr = createTypedExpr<LemniTypedExtFnDeclExprT>(state, state->types, lemni::toStdStr(name), ptr, resultType, std::move(paramsVec));
+	std::vector<std::string> paramNamesVec;
+	paramNamesVec.reserve(numParams);
+
+	for(std::size_t i = 0; i < numParams; i++){
+		paramNamesVec.emplace_back(lemni::toStdStr(paramNames[i]));
+	}
+
+	auto expr = createTypedExpr<LemniTypedExtFnDeclExprT>(state, fnType, lemni::toStdStr(name), ptr, std::move(paramNamesVec));
 
 	lemniScopeSet(state->globalScope, expr);
 

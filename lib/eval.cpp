@@ -846,9 +846,49 @@ struct FFICallerRet{
 					return makeError(state, fmt::format("Error in dlsym: {}", dlerror()));
 			}
 
+			auto numParams = lemniFunctionTypeNumParams(self->fnType);
+
+			auto resultType = lemniFunctionTypeResult(self->fnType);
+			auto resultFFIType = lemniTypeToFFI(resultType);
+			if(!resultFFIType){
+				throw std::runtime_error("could not convert result type for FFI");
+			}
+
+			std::vector<ffi_type*> paramFFITypes;
+			paramFFITypes.reserve(numParams);
+
+			if(numParams > 0 && (numParams > 1 || !lemniTypeAsUnit(lemniFunctionTypeParam(self->fnType, 0)))){
+				for(LemniNat64 i = 0; i < numParams; i++){
+					auto paramType = lemniFunctionTypeParam(self->fnType, i);
+					auto paramFFIType = lemniTypeToFFI(paramType);
+					if(!paramFFIType){
+						throw std::runtime_error("could not convert type for FFI");
+					}
+
+					paramFFITypes.emplace_back(paramFFIType);
+				}
+			}
+
+			ffi_cif cif;
+			auto ffiRes = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, paramFFITypes.size(), resultFFIType, paramFFITypes.data());
+			if(ffiRes != FFI_OK){
+				switch(ffiRes){
+					case FFI_BAD_TYPEDEF:{
+						throw std::runtime_error("error in ffi_prep_cif: FFI_BAD_TYPEDEF");
+					}
+
+					case FFI_BAD_ABI:{
+						throw std::runtime_error("error in ffi_prep_cif: FFI_BAD_ABI");
+					}
+
+					default:{
+						throw std::runtime_error("error in ffi_prep_cif: " + std::to_string(ffiRes));
+					}
+				}
+			}
+
 			if constexpr(std::is_same_v<void, Ret>){
-				ffi_arg result; // probably not needed
-				ffi_call(&self->cif, FFI_FN(fnptr), &result, argPtrs);
+				ffi_call(&cif, FFI_FN(fnptr), nullptr, argPtrs);
 
 				LemniValueCallResult res;
 				res.hasError = false;
@@ -860,7 +900,7 @@ struct FFICallerRet{
 					detail::Max<sizeof(Ret), sizeof(ffi_arg)>,
 					detail::Max<alignof(Ret), alignof(ffi_arg)>> retStorage;
 
-				ffi_call(&self->cif, FFI_FN(fnptr), &retStorage, argPtrs);
+				ffi_call(&cif, FFI_FN(fnptr), &retStorage, argPtrs);
 
 				LemniValueCallResult res;
 				res.hasError = false;
@@ -905,10 +945,8 @@ struct FFICallerRet{
 					return litError(LEMNICSTR("wrong number of args passed"));
 				}
 
-				std::vector<std::unique_ptr<std::byte[]>> argBytes;
 				std::vector<void*> argPtrs;
 
-				argBytes.reserve(numArgs);
 				argPtrs.reserve(numArgs);
 
 				for(LemniNat64 i = 0; i < numArgs; i++){
@@ -926,8 +964,7 @@ struct FFICallerRet{
 						));
 					}
 
-					argPtrs.emplace_back(bytes.get());
-					argBytes.emplace_back(std::move(bytes));
+					argPtrs.emplace_back(bytes);
 				}
 
 				return callFn(self, state, name.c_str(), argPtrs.data());

@@ -90,10 +90,12 @@ typedef struct LemniModuleResultT{
 } LemniModuleResult;
 
 LemniTypedExtFnDeclExpr lemniModuleCreateExtFn(
-	LemniModule mod, const LemniStr name, void *const ptr,
-	const LemniType resultType,
+	LemniModule mod,
+	const LemniStr name,
+	void *const ptr,
+	LemniType resultType,
 	const LemniNat64 numParams,
-	const LemniType *const paramTypes,
+	LemniType *const paramTypes,
 	const LemniStr *const paramNames
 );
 

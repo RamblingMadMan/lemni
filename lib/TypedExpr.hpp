@@ -872,97 +872,8 @@ struct LemniTypedFnDefExprT: LemniTypedNamedExprT{
 ffi_type *lemniTypeToFFI(LemniType type);
 
 struct LemniTypedExtFnDeclExprT: LemniTypedNamedExprT{
-	LemniTypedExtFnDeclExprT(LemniTypeSet types, std::string name, void *const ptr_, LemniType resultType, std::vector<std::pair<std::string, LemniType>> params)
-		: LemniTypedNamedExprT(std::move(name)), ptr(ptr_)
-	{
-		auto resultFFIType = lemniTypeToFFI(resultType);
-		if(!resultFFIType){
-			throw std::runtime_error("could not convert result type for FFI");
-		}
-
-		std::vector<LemniType> paramTypes;
-		std::vector<ffi_type*> paramFFITypes;
-		paramNames.reserve(params.size());
-		paramTypes.reserve(params.size());
-		paramFFITypes.reserve(params.size());
-
-		for(auto p : params){
-			paramNames.emplace_back(std::move(p.first));
-			paramTypes.emplace_back(p.second);
-
-			auto ffiType = lemniTypeToFFI(p.second);
-			if(!ffiType){
-				throw std::runtime_error("could not convert type for FFI");
-			}
-
-			paramFFITypes.emplace_back(ffiType);
-		}
-
-		if(params.empty()){
-			paramTypes.emplace_back(lemniTypeSetGetUnit(types));
-		}
-
-		fnType = lemniTypeSetGetFunction(types, resultType, paramTypes.data(), paramTypes.size());
-
-		auto ffiRes = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, params.size(), resultFFIType, paramFFITypes.data());
-		if(ffiRes != FFI_OK){
-			switch(ffiRes){
-				case FFI_BAD_TYPEDEF:{
-					throw std::runtime_error("error in ffi_prep_cif: FFI_BAD_TYPEDEF");
-				}
-
-				case FFI_BAD_ABI:{
-					throw std::runtime_error("error in ffi_prep_cif: FFI_BAD_ABI");
-				}
-
-				default:{
-					throw std::runtime_error("error in ffi_prep_cif: " + std::to_string(ffiRes));
-				}
-			}
-		}
-	}
-
 	LemniTypedExtFnDeclExprT(LemniFunctionType fnType_, std::string name_, void *const ptr_, std::vector<std::string> paramNames_)
-		: LemniTypedNamedExprT(std::move(name_)), ptr(ptr_), paramNames(std::move(paramNames_)), fnType(fnType_)
-	{
-		auto resultType = lemniFunctionTypeResult(fnType);
-		auto resultFFIType = lemniTypeToFFI(resultType);
-		if(!resultFFIType){
-			throw std::runtime_error("could not convert result type for FFI");
-		}
-
-		auto numParams = lemniFunctionTypeNumParams(fnType);
-
-		std::vector<ffi_type*> paramFFITypes;
-		paramFFITypes.reserve(numParams);
-
-		for(LemniNat64 i = 0; i < numParams; i++){
-			auto paramType = lemniFunctionTypeParam(fnType, i);
-			auto paramFFIType = lemniTypeToFFI(paramType);
-			if(!paramFFIType){
-				throw std::runtime_error("could not convert type for FFI");
-			}
-
-			paramFFITypes.emplace_back(paramFFIType);
-		}
-
-		auto ffiRes = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, numParams, resultFFIType, paramFFITypes.data());
-		if(ffiRes != FFI_OK){
-			switch(ffiRes){
-				case FFI_BAD_TYPEDEF:{
-					throw std::runtime_error("error in ffi_prep_cif: FFI_BAD_TYPEDEF");
-				}
-
-				case FFI_BAD_ABI:{
-					throw std::runtime_error("error in ffi_prep_cif: FFI_BAD_ABI");
-				}
-
-				default:{
-					throw std::runtime_error("error in ffi_prep_cif: " + std::to_string(ffiRes));
-				}
-			}
-		}
-	}
+		: LemniTypedNamedExprT(std::move(name_)), ptr(ptr_), paramNames(std::move(paramNames_)), fnType(fnType_){}
 
 	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedExtFnDeclExprT>(fnType, m_id, ptr, paramNames); }
 
@@ -975,7 +886,6 @@ struct LemniTypedExtFnDeclExprT: LemniTypedNamedExprT{
 	void *ptr;
 	std::vector<std::string> paramNames;
 	LemniFunctionType fnType;
-	mutable ffi_cif cif;
 };
 
 #endif // !LEMNI_LIB_TYPEDEXPR_HPP

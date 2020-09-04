@@ -546,6 +546,9 @@ LemniLexResult lemniLex(LemniLexState state){
 
 		utf8::advance(it, 1, end);
 
+		if(it == end)
+			return makeError(state, state->loc, "Unexpected end of source in string literal");
+
 		++state->loc.col;
 
 		while(1){

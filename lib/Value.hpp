@@ -61,7 +61,7 @@ struct LemniValueT{
 
 	virtual std::string toString() const noexcept = 0;
 
-	virtual std::unique_ptr<std::byte[]> toBytes(LemniType type) const noexcept{
+	virtual void *toBytes(LemniType type) const noexcept{
 		(void)type;
 		return nullptr;
 	}
@@ -110,7 +110,7 @@ struct LemniValueRefT: LemniValueT{
 
 	std::string toString() const noexcept override{ return refed->toString(); };
 
-	std::unique_ptr<std::byte[]> toBytes(LemniType type) const noexcept override{ return refed->toBytes(type); }
+	void *toBytes(LemniType type) const noexcept override{ return refed->toBytes(type); }
 
 	LemniType getType(LemniTypeSet types) const noexcept override{ return refed->getType(types); }
 
@@ -150,16 +150,14 @@ struct LemniValueUnitT: LemniValueT{
 
 	std::string toString() const noexcept override{ return "()"; }
 
-	std::unique_ptr<std::byte[]> toBytes(LemniType type) const noexcept override{
+	void *toBytes(LemniType type) const noexcept override{
 		if(type){
 			auto unitType = lemniTypeAsUnit(type);
 			if(!unitType) return nullptr;
 		}
 
-		auto ret = std::make_unique<std::byte[]>(1);
-		ret[0] = std::byte(0);
-
-		return ret;
+		static std::uintptr_t ret = 0;
+		return &ret;
 	}
 
 	LemniType getType(LemniTypeSet types) const noexcept override{ return lemniTypeSetGetUnit(types); }
@@ -202,18 +200,15 @@ struct LemniValueBoolT: LemniValueT{
 		return lemniTypeSetGetBool(types);
 	}
 
-	std::unique_ptr<std::byte[]> toBytes(LemniType type) const noexcept override{
+	void *toBytes(LemniType type) const noexcept override{
 		if(type){
 			auto boolType = lemniTypeAsBool(type);
 			if(!boolType) return nullptr;
 		}
 
-		auto ret = std::make_unique<std::byte[]>(sizeof(ffi_arg));
-		std::memcpy(ret.get(), &value, sizeof(LemniBool));
-		//std::memset(ret.get(), value ? ~0 : 0, sizeof(ffi_arg));
-		//ret[0] = std::byte(value ? 1 : 0);
-
-		return ret;
+		thread_local LemniBool ret;
+		ret = value;
+		return &ret;
 	}
 
 	LemniValue performUnaryOp(const LemniUnaryOp op) const noexcept override;

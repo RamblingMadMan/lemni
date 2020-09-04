@@ -75,9 +75,9 @@ LemniTypecheckResult lemniModuleTypecheck(LemniModule mod, LemniExpr expr){
 
 LemniTypedExtFnDeclExpr lemniModuleCreateExtFn(
 	LemniModule mod, const LemniStr name, void *const ptr,
-	const LemniType resultType,
+	LemniType resultType,
 	const LemniNat64 numParams,
-	const LemniType *const paramTypes,
+	LemniType *const paramTypes,
 	const LemniStr *const paramNames
 ){
 	auto res = lemniCreateTypedExtFn(mod->state, name, ptr, resultType, numParams, paramTypes, paramNames);

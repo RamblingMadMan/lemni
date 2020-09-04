@@ -72,8 +72,6 @@ typedef int64_t LemniInt64;
  * @{
  */
 
-BEGIN_PACKED();
-
 typedef struct alignas(4) LemniRatio32T{
 	LemniInt16 num;
 	LemniNat16 den;
@@ -88,8 +86,6 @@ typedef struct alignas(16) LemniRatio128T{
 	LemniInt64 num;
 	LemniNat64 den;
 } LemniRatio128;
-
-END_PACKED();
 
 LemniRatio32 lemniSimplifyRatio32(const LemniRatio32 q32);
 LemniRatio64 lemniSimplifyRatio64(const LemniRatio64 q64);

@@ -114,10 +114,12 @@ LemniTypedModuleExpr lemniCreateTypedModule(LemniTypecheckState state, const Lem
  * @returns newly created external function expression
  */
 LemniTypedExtFnDeclExpr lemniCreateTypedExtFn(
-	LemniTypecheckState state, const LemniStr name, void *const ptr,
-	const LemniType resultType,
+	LemniTypecheckState state,
+	const LemniStr name,
+	void *const ptr,
+	LemniType resultType,
 	const LemniNat64 numParams,
-	const LemniType *const paramTypes,
+	LemniType *const paramTypes,
 	const LemniStr *const paramNames
 );
 
