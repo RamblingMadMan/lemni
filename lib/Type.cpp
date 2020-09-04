@@ -183,6 +183,8 @@ LemniRealType lemniRealTypeAbstract(LemniRealType real){ return reinterpret_cast
 LemniType lemniRealAsType(LemniRealType real){ return real; }
 
 LemniRatioType lemniTypeAsRatio(LemniType type){ return dynamic_cast<LemniRatioType>(type); }
+LemniIntType lemniRatioTypeNumerator(LemniRatioType ratio){ return ratio->numerator(); };
+LemniNatType lemniRatioTypeDenominator(LemniRatioType ratio){ return ratio->denominator(); };
 LemniRealType lemniRatioTypeBase(LemniRatioType ratio){ return reinterpret_cast<LemniRealType>(ratio->base()); }
 LemniRatioType lemniRatioTypeAbstract(LemniRatioType ratio){ return reinterpret_cast<LemniRatioType>(ratio->base()); }
 LemniType lemniRatioAsType(LemniRatioType ratio){ return ratio; }
@@ -273,10 +275,10 @@ struct LemniTypeSetT{
 		, unit(&top, createTypeInfo(unitTypeInfo()))
 		, bool_(&top, createTypeInfo(boolTypeInfo()))
 		, number(&top, createTypeInfo(numberTypeInfo()))
-		, real(&number, &real, createTypeInfo(realTypeInfo()), 0)
-		, ratio(&real, &ratio, createTypeInfo(ratioTypeInfo()), 0)
-		, int_(&ratio, &int_, createTypeInfo(intTypeInfo()), 0)
 		, nat(&int_, &nat, createTypeInfo(natTypeInfo()), 0)
+		, int_(&ratio, &int_, createTypeInfo(intTypeInfo()), 0)
+		, ratio(&real, &ratio, createTypeInfo(ratioTypeInfo()), 0, &int_, &nat)
+		, real(&number, &real, createTypeInfo(realTypeInfo()), 0)
 		, str(&top, createTypeInfo(strTypeInfo()))
 		, strA(&str, createTypeInfo(strAsciiTypeInfo()))
 		, strU(&strA, createTypeInfo(strUtf8TypeInfo()))
@@ -302,10 +304,10 @@ struct LemniTypeSetT{
 	LemniUnitTypeImplT unit;
 	LemniBoolTypeImplT bool_;
 	LemniNumberTypeImplT number;
-	LemniRealTypeImplT real;
-	LemniRatioTypeImplT ratio;
-	LemniIntTypeImplT int_;
 	LemniNatTypeImplT nat;
+	LemniIntTypeImplT int_;
+	LemniRatioTypeImplT ratio;
+	LemniRealTypeImplT real;
 	LemniStringTypeImplT str;
 	LemniStringASCIITypeImplT strA;
 	LemniStringUTF8TypeImplT strU;
@@ -587,7 +589,10 @@ LemniRatioType lemniTypeSetGetRatio(LemniTypeSet types, const uint32_t numBits){
 	auto typeInfo = ratioTypeInfo(numBits);
 	auto typeIdx = types->createTypeInfo(typeInfo);
 
-	auto ptr = std::make_unique<LemniRatioTypeImplT>(lemniTypeSetGetReal(types, numBits / 2), &types->ratio, typeIdx, numBits);
+	auto numType = lemniTypeSetGetInt(types, numBits / 2);
+	auto denType = lemniTypeSetGetNat(types, numBits / 2);
+
+	auto ptr = std::make_unique<LemniRatioTypeImplT>(lemniTypeSetGetReal(types, numBits / 2), &types->ratio, typeIdx, numBits, numType, denType);
 
 	auto emplaceRes = types->ratioTys.try_emplace(numBits, std::move(ptr));
 

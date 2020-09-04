@@ -126,7 +126,10 @@ struct LemniCDoubleTypeT: LemniCTypeT{};
 
 struct LemniNumberTypeT: LemniTypeT{};
 struct LemniRealTypeT: LemniTypeT{};
-struct LemniRatioTypeT: LemniTypeT{};
+struct LemniRatioTypeT: LemniTypeT{
+	virtual LemniIntType numerator() const noexcept = 0;
+	virtual LemniNatType denominator() const noexcept = 0;
+};
 struct LemniIntTypeT: LemniTypeT{};
 struct LemniNatTypeT: LemniTypeT{};
 
@@ -331,6 +334,8 @@ LemniType lemniRealAsType(LemniRealType real);
 LemniRatioType lemniTypeAsRatio(LemniType type);
 LemniRealType lemniRatioTypeBase(LemniRatioType ratio);
 LemniRatioType lemniRatioTypeAbstract(LemniRatioType ratio);
+LemniIntType lemniRatioTypeNumerator(LemniRatioType ratio);
+LemniNatType lemniRatioTypeDenominator(LemniRatioType ratio);
 LemniType lemniRatioAsType(LemniRatioType ratio);
 
 LemniIntType lemniTypeAsInt(LemniType type);

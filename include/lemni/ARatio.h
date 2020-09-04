@@ -22,6 +22,12 @@
 #include "AInt.h"
 #include "Interop.h"
 
+/**
+ * @defgroup ARatio Arbitraty-precision rational numbers
+ * Any functions returning a new \ref LemniARatio must be followed by calls to \ref lemniDestroyARatio .
+ * @{
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,10 +37,10 @@ typedef const struct LemniARatioT *LemniARatioConst;
 
 LemniARatio lemniCreateARatio(void);
 LemniARatio lemniCreateARatioCopy(LemniARatioConst other);
-LemniARatio lemniCreateARatioStr(const LemniStr str, const int base);
+LemniARatio lemniCreateARatioStr(const LemniStr str, const LemniNat16 base);
 LemniARatio lemniCreateARatioAInt(LemniAIntConst num, LemniAIntConst den);
-LemniARatio lemniCreateARatioLong(const long num, const unsigned long den);
-LemniARatio lemniCreateARatioULong(const unsigned long num, const unsigned long den);
+LemniARatio lemniCreateARatioLong(const LemniInt64 num, const LemniNat64 den);
+LemniARatio lemniCreateARatioULong(const LemniNat64 num, const LemniNat64 den);
 LemniARatio lemniCreateARatioFrom32(const LemniRatio32 q32);
 LemniARatio lemniCreateARatioFrom64(const LemniRatio64 q64);
 LemniARatio lemniCreateARatioFrom128(const LemniRatio128 q128);
@@ -81,16 +87,16 @@ namespace lemni{
 		public:
 			ARatio(): m_val(lemniCreateARatio()){}
 
-			explicit ARatio(std::string_view str, const int base = 10) noexcept
+			explicit ARatio(std::string_view str, const LemniNat16 base = 10) noexcept
 				: m_val(lemniCreateARatioStr(LemniStr{ str.data(), str.size() }, base)){}
 
 			ARatio(const AInt &num, const AInt &den) noexcept
 				: m_val(lemniCreateARatioAInt(num.m_val, den.m_val)){}
 
-			ARatio(const long num, const unsigned long den) noexcept
+			ARatio(const LemniInt64 num, const LemniNat64 den) noexcept
 				: m_val(lemniCreateARatioLong(num, den)){}
 
-			ARatio(const unsigned long num, const unsigned long den) noexcept
+			ARatio(const LemniNat64 num, const LemniNat64 den) noexcept
 				: m_val(lemniCreateARatioULong(num, den)){}
 
 			explicit ARatio(const LemniRatio32 &q32) noexcept
@@ -119,6 +125,7 @@ namespace lemni{
 			}
 
 			ARatio &operator =(ARatio &&other) noexcept{
+				if(m_val) lemniDestroyARatio(m_val);
 				m_val = other.m_val;
 				other.m_val = nullptr;
 				return *this;
@@ -256,5 +263,9 @@ namespace lemni{
 }
 #endif // !LEMNI_NO_CPP
 #endif // __cplusplus
+
+/**
+ * @}
+ */
 
 #endif // !LEMNI_ARATIO_H

@@ -35,6 +35,7 @@
 #include "lemni/Module.h"
 #include "lemni/eval.h"
 #include "lemni/compile.h"
+#include "lemni/memcheck.h"
 
 #include "Type.hpp"
 
@@ -84,18 +85,20 @@ struct LemniPartialBindingsT{
 
 	LemniTypedExpr find(LemniTypedExpr expr) const{
 		auto res = bound.find(expr);
-		if(res != end(bound)){
-			return res->second;
-		}
-		else if(parent){
-			return parent->find(expr);
-		}
-		else{
-			return nullptr;
-		}
+		if(res != end(bound)) return res->second;
+		else if(parent) return parent->find(expr);
+		else return nullptr;
+	}
+
+	LemniType resolve(LemniPseudoType pseudo) const{
+		auto it = resolvedTypes.find(pseudo);
+		if(it != end(resolvedTypes)) return it->second;
+		else if(parent) return parent->resolve(pseudo);
+		else return pseudo;
 	}
 
 	LemniPartialBindingsConst parent;
+	std::map<LemniPseudoType, LemniType> resolvedTypes;
 	std::map<LemniTypedExpr, LemniTypedExpr> bound;
 };
 
@@ -147,6 +150,8 @@ struct LemniTypedExprT{
 	virtual LemniTypecheckResult partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept;
 
 	virtual LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept = 0;
+
+	virtual LemniMemCheckResult memcheck(LemniMemCheckState state) const noexcept;
 
 	virtual LemniJitResult compile(LemniCompileState state, LemniCompileContext ctx = nullptr) const noexcept{
 		(void)state;
@@ -205,7 +210,15 @@ struct LemniTypedPlaceholderExprT: LemniTypedLiteralExprT{
 	LemniPseudoType pseudoType;
 };
 
-struct LemniTypedConstantExprT: LemniTypedLiteralExprT{};
+struct LemniTypedConstantExprT: LemniTypedLiteralExprT{
+	LemniMemCheckResult memcheck(LemniMemCheckState state) const noexcept{
+		(void)state;
+		LemniMemCheckResult res;
+		res.hasError = false;
+		res.res = { .expr = this, .size = { 0, 0 } };
+		return res;
+	}
+};
 
 struct LemniTypedModuleExprT: LemniTypedConstantExprT{
 	LemniTypedModuleExprT(LemniModuleType moduleType_, LemniModule module_) noexcept
@@ -448,21 +461,6 @@ struct LemniTypedBlockExprT: LemniTypedExprT{
 
 	LemniType resultType;
 	std::vector<LemniTypedExpr> exprs;
-};
-
-struct LemniTypedLambdaExprT: LemniTypedLiteralExprT{
-	LemniTypedLambdaExprT(LemniFunctionType fnType_, std::vector<LemniTypedExpr> params_, LemniTypedExpr body_) noexcept
-		: fnType(fnType_), params(std::move(params_)), body(body_){}
-
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedLambdaExprT>(fnType, params, body); }
-
-	LemniFunctionType type() const noexcept override{ return fnType; }
-
-	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
-
-	LemniFunctionType fnType;
-	std::vector<LemniTypedExpr> params;
-	LemniTypedExpr body;
 };
 
 struct LemniTypedExportExprT: LemniTypedConstantExprT{
@@ -814,34 +812,61 @@ struct LemniTypedParamBindingExprT: LemniTypedNamedExprT{
 	LemniType valueType;
 };
 
-struct LemniTypedFnDefExprT: LemniTypedNamedExprT{
-	LemniTypedFnDefExprT(LemniTypeSet types, std::string id_, LemniType resultType, std::vector<LemniTypedParamBindingExpr> params_, LemniTypedExpr body_)
-		: LemniTypedNamedExprT(std::move(id_)), params(std::move(params_)), body(body_)
+struct LemniTypedLambdaExprT: LemniTypedLiteralExprT{
+	LemniTypedLambdaExprT(LemniTypeSet types, std::vector<LemniTypedParamBindingExpr> params_, LemniTypedExpr body_) noexcept
+		: params(std::move(params_)), body(body_)
 	{
+		LemniType resultType = body->type();
+
+		isPseudo = lemniTypeAsPseudo(resultType);
+
 		std::vector<LemniType> paramTypes;
 		paramTypes.reserve(params.size());
 
 		for(auto p : params){
-			paramTypes.emplace_back(p->valueType);
+			if(!isPseudo && lemniTypeAsPseudo(p->type())) isPseudo = true;
+			paramTypes.emplace_back(p->type());
 		}
 
 		fnType = lemniTypeSetGetFunction(types, resultType, paramTypes.data(), paramTypes.size());
 	}
 
-	LemniTypedFnDefExprT(std::string id_, LemniFunctionType fnType_, std::vector<LemniTypedParamBindingExpr> params_, LemniTypedExpr body_)
-		: LemniTypedNamedExprT(std::move(id_)), params(std::move(params_)), body(body_), fnType(fnType_){}
+	LemniTypedLambdaExprT(std::vector<LemniTypedParamBindingExpr> params_, LemniTypedExpr body_, LemniFunctionType fnType_, bool isPseudo_) noexcept
+		: params(std::move(params_)), body(body_), fnType(fnType_), isPseudo(isPseudo_){}
 
-	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedFnDefExprT>(m_id, fnType, params, body); }
+	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedLambdaExprT>(params, body, fnType, isPseudo); }
 
 	LemniFunctionType type() const noexcept override{ return fnType; }
 
 	LemniTypecheckResult partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept override;
+
+	LemniMemCheckResult memcheck(LemniMemCheckState state) const noexcept override;
+
+	LemniJitResult compile(LemniCompileState state, LemniCompileContext ctx) const noexcept override;
 
 	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
 
 	std::vector<LemniTypedParamBindingExpr> params;
 	LemniTypedExpr body;
 	LemniFunctionType fnType;
+	bool isPseudo;
+};
+
+struct LemniTypedFnDefExprT: LemniTypedNamedExprT{
+	LemniTypedFnDefExprT(std::string id_, LemniTypedLambdaExpr lambda_)
+		: LemniTypedNamedExprT(std::move(id_)), lambda(lambda_){}
+
+	LemniTypedExpr clone() const noexcept override{ return newTypedExpr<LemniTypedFnDefExprT>(m_id, lambda); }
+
+	LemniFunctionType type() const noexcept override{ return lambda->fnType; }
+
+	LemniTypecheckResult partialEval(LemniTypecheckState state, LemniPartialBindings bindings, const LemniNat64 numArgs, LemniTypedExpr *const args) const noexcept override;
+
+	LemniMemCheckResult memcheck(LemniMemCheckState state) const noexcept override;
+
+	LemniEvalResult eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept override;
+
+	LemniTypedLambdaExpr lambda;
 };
 
 ffi_type *lemniTypeToFFI(LemniType type);

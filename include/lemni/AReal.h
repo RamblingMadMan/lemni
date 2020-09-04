@@ -43,13 +43,13 @@ LemniAReal lemniCreateARealCopy(LemniARealConst other);
  * @param base base of the numeric string
  * @returns handle of newly created AReal
  */
-LemniAReal lemniCreateARealStr(const LemniStr str, const int base);
+LemniAReal lemniCreateARealStr(const LemniStr str, const LemniNat16 base);
 
 LemniAReal lemniCreateARealAInt(LemniAIntConst aint);
 LemniAReal lemniCreateARealARatio(LemniARatioConst aratio);
-LemniAReal lemniCreateARealDouble(const double d);
-LemniAReal lemniCreateARealLong(const long si);
-LemniAReal lemniCreateARealULong(const unsigned long ui);
+LemniAReal lemniCreateARealDouble(const LemniReal64 d);
+LemniAReal lemniCreateARealLong(const LemniInt64 si);
+LemniAReal lemniCreateARealULong(const LemniNat64 ui);
 
 /**
  * @brief Destroy an arbitrary-precision real.
@@ -144,7 +144,7 @@ namespace lemni{
 		public:
 			AReal() noexcept: m_val(lemniCreateAReal()){}
 
-			explicit AReal(std::string_view str, const int base = 10) noexcept
+			explicit AReal(std::string_view str, const LemniNat16 base = 10) noexcept
 				: m_val(lemniCreateARealStr(LemniStr{ str.data(), str.size() }, base)){}
 
 			explicit AReal(const AInt &aint) noexcept
@@ -153,20 +153,23 @@ namespace lemni{
 			explicit AReal(const ARatio &aratio) noexcept
 				: m_val(lemniCreateARealARatio(aratio.m_val)){}
 
-			explicit AReal(const double d) noexcept
+			explicit AReal(const LemniReal64 d) noexcept
 				: m_val(lemniCreateARealDouble(d)){}
 
-			explicit AReal(const long si) noexcept
+			explicit AReal(const LemniReal32 f) noexcept
+				: AReal(static_cast<LemniReal64>(f)){}
+
+			explicit AReal(const LemniInt64 si) noexcept
 				: m_val(lemniCreateARealLong(si)){}
 
-			explicit AReal(const unsigned long ui) noexcept
+			explicit AReal(const LemniNat64 ui) noexcept
 				: m_val(lemniCreateARealULong(ui)){}
 
-			explicit AReal(const int si) noexcept
-				: AReal(static_cast<long>(si)){}
+			explicit AReal(const LemniInt32 si) noexcept
+				: AReal(static_cast<LemniInt64>(si)){}
 
-			explicit AReal(const unsigned int ui) noexcept
-				: AReal(static_cast<unsigned long>(ui)){}
+			explicit AReal(const LemniNat32 ui) noexcept
+				: AReal(static_cast<LemniNat64>(ui)){}
 
 			AReal(const AReal &other) noexcept
 				: m_val(lemniCreateARealCopy(other.m_val)){}
@@ -185,19 +188,20 @@ namespace lemni{
 			}
 
 			AReal &operator =(AReal &&other) noexcept{
+				if(m_val) lemniDestroyAReal(m_val);
 				m_val = other.m_val;
 				other.m_val = nullptr;
 				return *this;
 			}
 
-			operator LemniAReal() noexcept{ return m_val; }
+			//operator LemniAReal() noexcept{ return m_val; }
 			operator LemniARealConst() const noexcept{ return m_val; }
 
 			static AReal from(LemniAReal areal) noexcept{
 				return AReal(areal);
 			}
 
-			LemniAReal handle() noexcept{ return m_val; }
+			//LemniAReal handle() noexcept{ return m_val; }
 			LemniARealConst handle() const noexcept{ return m_val; }
 
 			std::string toString() const noexcept{
@@ -215,7 +219,7 @@ namespace lemni{
 
 			float toFloat() const noexcept{ return lemniARealToFloat(m_val); }
 
-			float toDouble() const noexcept{ return lemniARealToDouble(m_val); }
+			double toDouble() const noexcept{ return lemniARealToDouble(m_val); }
 
 			std::uint32_t numIntBits() const noexcept{ return lemniARealNumIntBits(m_val); }
 

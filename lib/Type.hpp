@@ -326,6 +326,57 @@ inline static constexpr bool typeHasUnaryOp(LemniTypeInfo info, const LemniUnary
 	return info.unaryOpFlags & op;
 }
 
+enum class LemniTypeCategory: uint32_t{
+	scalar,
+	pseudo,
+	meta,
+	module,
+	callable,
+	compound,
+	top, bottom,
+
+	count
+};
+
+enum class LemniScalarFlags: uint32_t{
+	range,
+	boolean, natural, integer, ratio, real,
+	textual,
+	ascii, utf8,
+
+	count
+};
+
+enum class LemniMetaFlags: uint32_t{
+	list, atom,
+
+	count
+};
+
+enum class LemniCallableFlags: uint32_t{
+	closure,
+
+	count
+};
+
+enum class LemniCompoundFlags: uint32_t{
+	array, sum, product, record,
+
+	count
+};
+
+enum class LemniModuleFlags: uint32_t{
+	count
+};
+
+template<typename Enum>
+inline constexpr uint32_t enumFlag(Enum val) noexcept{ return uint32_t(1) << static_cast<uint32_t>(val); }
+
+struct LemniTypeTraitsT{
+	LemniTypeCategory category;
+	uint32_t flags;
+};
+
 template<typename TypeBase, typename Base, typename T, typename = void>
 struct LemniTypeBaseImplT;
 
@@ -437,10 +488,17 @@ struct LemniRealTypeImplT: LemniTypeImplT<LemniRealTypeT, LemniRealTypeImplT>{
 };
 
 struct LemniRatioTypeImplT: LemniTypeImplT<LemniRatioTypeT, LemniRatioTypeImplT>{
-	LemniRatioTypeImplT(LemniRealType base, LemniRatioType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits)
-		: LemniTypeImplT(base, abstract, numBits, typeInfoIdx_, "Ratio" + (numBits > 0 ? std::to_string(numBits) : ""s), "q" + std::to_string(numBits)){}
+	LemniRatioTypeImplT(LemniRealType base, LemniRatioType abstract, const uint64_t typeInfoIdx_, const uint32_t numBits, LemniIntType numType_, LemniNatType denType_)
+		: LemniTypeImplT(base, abstract, numBits, typeInfoIdx_, "Ratio" + (numBits > 0 ? std::to_string(numBits) : ""s), "q" + std::to_string(numBits))
+		, numType(numType_), denType(denType_){}
 
 	bool isCastable(LemniType to) const noexcept override;
+
+	LemniIntType numerator() const noexcept override{ return numType; }
+	LemniNatType denominator() const noexcept override{ return denType; }
+
+	LemniIntType numType;
+	LemniNatType denType;
 };
 
 struct LemniIntTypeImplT: LemniTypeImplT<LemniIntTypeT, LemniIntTypeImplT>{

@@ -12,7 +12,7 @@ include(ExternalProject)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	add_compile_options("-fconcepts")
@@ -40,6 +40,8 @@ set(
 	${LEMNI_INCLUDE_DIR}/lemni/Type.h
 	${LEMNI_INCLUDE_DIR}/lemni/TypedExpr.h
 	${LEMNI_INCLUDE_DIR}/lemni/typecheck.h
+	${LEMNI_INCLUDE_DIR}/lemni/Region.h
+	${LEMNI_INCLUDE_DIR}/lemni/memcheck.h
 	${LEMNI_INCLUDE_DIR}/lemni/Module.h
 	${LEMNI_INCLUDE_DIR}/lemni/Value.h
 	${LEMNI_INCLUDE_DIR}/lemni/mangle.h

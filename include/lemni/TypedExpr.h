@@ -34,74 +34,74 @@
 extern "C" {
 #endif
 
-LEMNI_OPAQUE_CONST_T(LemniTypedExpr);
+typedef const struct LemniTypedExprT *LemniTypedExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedUnaryOpExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedBinaryOpExpr);
+typedef const struct LemniTypedUnaryOpExprT *LemniTypedUnaryOpExpr;
+typedef const struct LemniTypedBinaryOpExprT *LemniTypedBinaryOpExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedApplicationExpr);
+typedef const struct LemniTypedApplicationExprT *LemniTypedApplicationExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedLiteralExpr);
+typedef const struct LemniTypedLiteralExprT *LemniTypedLiteralExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedMacroExpr);
+typedef const struct LemniTypedMacroExprT *LemniTypedMacroExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedPlaceholderExpr);
+typedef const struct LemniTypedPlaceholderExprT *LemniTypedPlaceholderExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedProductExpr);
+typedef const struct LemniTypedProductExprT *LemniTypedProductExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedLambdaExpr);
+typedef const struct LemniTypedLambdaExprT *LemniTypedLambdaExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedConstantExpr);
+typedef const struct LemniTypedConstantExprT *LemniTypedConstantExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedExportExpr);
+typedef const struct LemniTypedExportExprT *LemniTypedExportExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedModuleExpr);
+typedef const struct LemniTypedModuleExprT *LemniTypedModuleExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedUnitExpr);
+typedef const struct LemniTypedUnitExprT *LemniTypedUnitExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedNumExpr);
+typedef const struct LemniTypedNumExprT *LemniTypedNumExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedNatExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedANatExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedNat16Expr);
-LEMNI_OPAQUE_CONST_T(LemniTypedNat32Expr);
-LEMNI_OPAQUE_CONST_T(LemniTypedNat64Expr);
+typedef const struct LemniTypedNatExprT *LemniTypedNatExpr;
+typedef const struct LemniTypedANatExprT *LemniTypedANatExpr;
+typedef const struct LemniTypedNat16ExprT *LemniTypedNat16Expr;
+typedef const struct LemniTypedNat32ExprT *LemniTypedNat32Expr;
+typedef const struct LemniTypedNat64ExprT *LemniTypedNat64Expr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedIntExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedAIntExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedInt16Expr);
-LEMNI_OPAQUE_CONST_T(LemniTypedInt32Expr);
-LEMNI_OPAQUE_CONST_T(LemniTypedInt64Expr);
+typedef const struct LemniTypedIntExprT *LemniTypedIntExpr;
+typedef const struct LemniTypedAIntExprT *LemniTypedAIntExpr;
+typedef const struct LemniTypedInt16ExprT *LemniTypedInt16Expr;
+typedef const struct LemniTypedInt32ExprT *LemniTypedInt32Expr;
+typedef const struct LemniTypedInt64ExprT *LemniTypedInt64Expr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedRatioExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedARatioExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedRatio32Expr);
-LEMNI_OPAQUE_CONST_T(LemniTypedRatio64Expr);
-LEMNI_OPAQUE_CONST_T(LemniTypedRatio128Expr);
+typedef const struct LemniTypedRatioExprT *LemniTypedRatioExpr;
+typedef const struct LemniTypedARatioExprT *LemniTypedARatioExpr;
+typedef const struct LemniTypedRatio32ExprT *LemniTypedRatio32Expr;
+typedef const struct LemniTypedRatio64ExprT *LemniTypedRatio64Expr;
+typedef const struct LemniTypedRatio128ExprT *LemniTypedRatio128Expr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedRealExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedARealExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedReal32Expr);
-LEMNI_OPAQUE_CONST_T(LemniTypedReal64Expr);
+typedef const struct LemniTypedRealExprT *LemniTypedRealExpr;
+typedef const struct LemniTypedARealExprT *LemniTypedARealExpr;
+typedef const struct LemniTypedReal32ExprT *LemniTypedReal32Expr;
+typedef const struct LemniTypedReal64ExprT *LemniTypedReal64Expr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedStringExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedStringASCIIExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedStringUTF8Expr);
+typedef const struct LemniTypedStringExprT *LemniTypedStringExpr;
+typedef const struct LemniTypedStringASCIIExprT *LemniTypedStringASCIIExpr;
+typedef const struct LemniTypedStringUTF8ExprT *LemniTypedStringUTF8Expr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedTypeExpr);
+typedef const struct LemniTypedTypeExprT *LemniTypedTypeExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedRefExpr);
+typedef const struct LemniTypedRefExprT *LemniTypedRefExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedLValueExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedBindingExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedParamBindingExpr);
+typedef const struct LemniTypedLValueExprT *LemniTypedLValueExpr;
+typedef const struct LemniTypedBindingExprT *LemniTypedBindingExpr;
+typedef const struct LemniTypedParamBindingExprT *LemniTypedParamBindingExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedFnDefExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedExtFnDeclExpr);
+typedef const struct LemniTypedFnDefExprT *LemniTypedFnDefExpr;
+typedef const struct LemniTypedExtFnDeclExprT *LemniTypedExtFnDeclExpr;
 
-LEMNI_OPAQUE_CONST_T(LemniTypedBlockExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedReturnExpr);
-LEMNI_OPAQUE_CONST_T(LemniTypedBranchExpr);
+typedef const struct LemniTypedBlockExprT *LemniTypedBlockExpr;
+typedef const struct LemniTypedReturnExprT *LemniTypedReturnExpr;
+typedef const struct LemniTypedBranchExprT *LemniTypedBranchExpr;
 
 
 typedef struct {

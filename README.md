@@ -2,6 +2,8 @@
 
 [![Build Status](https://travis-ci.org/RamblingMadMan/lemni.svg?branch=master)](https://travis-ci.org/RamblingMadMan/lemni)
 
+> WARNING: This project is highly experimental and has an unstable development schedule
+
 Lemni is a functional programming language I created for the hell of it. It is designed with the intent of being referentially transparent while still being able to use (some) procedural techniques.
 
 ## Library
@@ -23,8 +25,9 @@ For an example of lexing and parsing take a look at `testall/main.cpp`.
 
 ```bash
 sudo apt --no-install-suggests --no-install-recommends install \
-  cmake-data cmake libgmp-dev libmpfr-dev libflint-dev libflint-arb-dev \
-  libicu-dev libffi-dev llvm-10-runtime llvm-10-dev g++
+  g++ make cmake-data cmake\
+  libgmp-dev libmpfr-dev libflint-dev libflint-arb-dev \
+  libicu-dev libffi-dev llvm-10-runtime llvm-10-dev
 ```
 
 ### Building
@@ -68,13 +71,13 @@ To start the REPL from the build directory, run the following command:
 You should be met with a prompt like so:
 
 ```bash
-Infinity lang REPL v4.2 rev 0
+Lemni lang REPL v6.9 rev 420
 Enter Repl.help () for help, or Repl.quit () to quit
 
 >
 ```
 
-To get a feel for the language try calling `replTut ()`.
+To get a feel for the language, try calling `Repl.tut ()`.
 
 ## Lemni Example
 
@@ -98,8 +101,9 @@ stripWs(name) =
 		name
 
 main() =
-	action = capitalize . stripWs . prompt
-	name = action "What's your name? "
+	name = (capitalize . stripWs)
+		(prompt "What's your name? ")
+	
 	IO.outln ("Hello, " ++ name ++ "!")
 ``` 
 

@@ -198,12 +198,12 @@ struct LemniBinaryOpExprT: LemniExprT{
 };
 
 struct LemniLambdaExprT: LemniExprT{
-	LemniLambdaExprT(LemniLocation loc_, std::vector<LemniExpr> params_, LemniExpr body_)
+	LemniLambdaExprT(LemniLocation loc_, std::vector<LemniParamBindingExpr> params_, LemniExpr body_)
 		: LemniExprT(loc_), params(std::move(params_)), body(body_){}
 
 	LemniTypecheckResult typecheck(LemniTypecheckState state, LemniScope scope) const noexcept override;
 
-	std::vector<LemniExpr> params;
+	std::vector<LemniParamBindingExpr> params;
 	LemniExpr body;
 };
 
@@ -268,13 +268,12 @@ struct LemniParamBindingExprT: LemniLValueExprT{
 };
 
 struct LemniFnDefExprT: LemniLValueExprT{
-	LemniFnDefExprT(LemniLocation loc_, std::string id_, std::vector<LemniParamBindingExpr> params_, LemniExpr body_)
-		: LemniLValueExprT(loc_, std::move(id_)), params(std::move(params_)), body(body_){}
+	LemniFnDefExprT(LemniLocation loc_, std::string id_, LemniLambdaExpr lambda_)
+		: LemniLValueExprT(loc_, std::move(id_)), lambda(lambda_){}
 
 	LemniTypecheckResult typecheck(LemniTypecheckState state, LemniScope scope) const noexcept override;
 
-	std::vector<LemniParamBindingExpr> params;
-	LemniExpr body;
+	LemniLambdaExpr lambda;
 };
 
 #endif // !LEMNI_LIB_EXPR_HPP

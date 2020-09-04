@@ -511,7 +511,7 @@ LemniEvalResult LemniTypedParamBindingExprT::eval(LemniEvalState state, LemniEva
 LemniEvalResult LemniTypedFnDefExprT::eval(LemniEvalState state, LemniEvalBindings bindings) const noexcept{
 	auto doType = [](void *const self_, LemniTypeSet types) -> LemniType{
 		auto self = reinterpret_cast<LemniTypedFnDefExpr>(self_);
-		auto fnType = self->fnType;
+		auto fnType = self->lambda->fnType;
 		// TODO: ensure 'fnType' exists in 'types'
 		(void)types;
 		return fnType;
@@ -520,19 +520,19 @@ LemniEvalResult LemniTypedFnDefExprT::eval(LemniEvalState state, LemniEvalBindin
 	auto doEval = [](void *const self_, LemniEvalState state, LemniEvalBindings bindings, LemniValue *const args, const LemniNat64 numArgs){
 		auto self = reinterpret_cast<LemniTypedFnDefExpr>(self_);
 
-		auto fnType = self->fnType;
+		auto fnType = self->lambda->fnType;
 
-		if(numArgs != self->params.size()){
+		if(numArgs != self->lambda->params.size()){
 			return litError(LEMNICSTR("wrong number of args passed"));
 		}
 
 		auto fnBindings = LemniEvalBindingsT(bindings);
 
-		for(std::size_t i = 0; i < self->params.size(); i++){
-			fnBindings.bound[self->params[i]] = lemni::Value::from(lemniCreateValueRef(args[i]));
+		for(std::size_t i = 0; i < self->lambda->params.size(); i++){
+			fnBindings.bound[self->lambda->params[i]] = lemni::Value::from(lemniCreateValueRef(args[i]));
 		}
 
-		auto retRes = self->body->eval(state, &fnBindings);
+		auto retRes = self->lambda->body->eval(state, &fnBindings);
 		return retRes;
 	};
 

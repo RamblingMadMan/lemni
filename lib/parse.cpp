@@ -252,7 +252,8 @@ namespace {
 			it = innerRes.second;
 		}
 
-		auto fnDef = createExpr<LemniFnDefExprT>(state, idTok->loc, std::string(idTok->text.ptr, idTok->text.len), std::move(paramExprs), bodyExpr);
+		auto lambda = createExpr<LemniLambdaExprT>(state, idTok->loc, std::move(paramExprs), bodyExpr);
+		auto fnDef = createExpr<LemniFnDefExprT>(state, idTok->loc, std::string(idTok->text.ptr, idTok->text.len), lambda);
 
 		auto delimIt = it;
 		if(it != end) ++it;

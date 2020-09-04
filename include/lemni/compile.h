@@ -20,6 +20,7 @@
 #define LEMNI_COMPILE_H 1
 
 #include "TypedExpr.h"
+#include "memcheck.h"
 
 /**
  * @defgroup Compile Types and functions related to expression compilation.

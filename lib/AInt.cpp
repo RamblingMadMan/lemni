@@ -38,20 +38,20 @@ LemniAInt lemniCreateAIntCopy(LemniAIntConst other){
 	return p;
 }
 
-LemniAInt lemniCreateAIntStr(const LemniStr str, const int base){
+LemniAInt lemniCreateAIntStr(const LemniStr str, const LemniNat16 base){
 	auto p = createAInt();
 	std::string cstr(str.ptr, str.len);
 	mpz_init_set_str(p->val, cstr.c_str(), base);
 	return p;
 }
 
-LemniAInt lemniCreateAIntLong(const long si){
+LemniAInt lemniCreateAIntLong(const LemniInt64 si){
 	auto p = createAInt();
 	mpz_init_set_si(p->val, si);
 	return p;
 }
 
-LemniAInt lemniCreateAIntULong(const unsigned long ui){
+LemniAInt lemniCreateAIntULong(const LemniNat64 ui){
 	auto p = createAInt();
 	mpz_init_set_ui(p->val, ui);
 	return p;
@@ -67,16 +67,16 @@ void lemniAIntSet(LemniAInt aint, LemniAIntConst other){
 	mpz_set(aint->val, other->val);
 }
 
-void lemniAIntSetStr(LemniAInt aint, LemniStr str, const int base){
+void lemniAIntSetStr(LemniAInt aint, LemniStr str, const LemniNat16 base){
 	std::string cstr(str.ptr, str.len);
 	mpz_set_str(aint->val, cstr.c_str(), base);
 }
 
-void lemniAIntSetLong(LemniAInt aint, const long si){
+void lemniAIntSetLong(LemniAInt aint, const LemniInt64 si){
 	mpz_set_si(aint->val, si);
 }
 
-void lemniAIntSetULong(LemniAInt aint, const unsigned long ui){
+void lemniAIntSetULong(LemniAInt aint, const LemniNat64 ui){
 	mpz_set_ui(aint->val, ui);
 }
 

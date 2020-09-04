@@ -56,7 +56,7 @@ LemniAReal lemniCreateARealCopy(LemniARealConst other){
 	return p;
 }
 
-LemniAReal lemniCreateARealStr(const LemniStr str, const int base){
+LemniAReal lemniCreateARealStr(const LemniStr str, const LemniNat16 base){
 	auto p = createAReal();
 
 	std::string cstr(str.ptr, str.len);
@@ -110,13 +110,13 @@ LemniAReal lemniCreateARealDouble(const double d){
 	return p;
 }
 
-LemniAReal lemniCreateARealLong(const long si){
+LemniAReal lemniCreateARealLong(const LemniInt64 si){
 	auto p = createAReal();
 	arb_set_si(p->val, si);
 	return p;
 }
 
-LemniAReal lemniCreateARealULong(const unsigned long ui){
+LemniAReal lemniCreateARealULong(const LemniNat64 ui){
 	auto p = createAReal();
 	arb_set_ui(p->val, ui);
 	return p;

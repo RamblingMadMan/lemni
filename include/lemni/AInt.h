@@ -20,6 +20,13 @@
 #define LEMNI_AINT_H 1
 
 #include "Str.h"
+#include "Interop.h"
+
+/**
+ * @defgroup AInt Arbitraty-precision integral numbers
+ * Any functions returning a new \ref LemniAInt must be followed by calls to \ref lemniDestroyAInt .
+ * @{
+ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,16 +37,16 @@ typedef const struct LemniAIntT *LemniAIntConst;
 
 LemniAInt lemniCreateAInt(void);
 LemniAInt lemniCreateAIntCopy(LemniAIntConst other);
-LemniAInt lemniCreateAIntStr(const LemniStr str, const int base);
-LemniAInt lemniCreateAIntLong(const long si);
-LemniAInt lemniCreateAIntULong(const unsigned long ui);
+LemniAInt lemniCreateAIntStr(const LemniStr str, const LemniNat16 base);
+LemniAInt lemniCreateAIntLong(const LemniInt64 si);
+LemniAInt lemniCreateAIntULong(const LemniNat64 ui);
 
 void lemniDestroyAInt(LemniAInt aint);
 
 void lemniAIntSet(LemniAInt aint, LemniAIntConst other);
-void lemniAIntSetStr(LemniAInt aint, LemniStr str, const int base);
-void lemniAIntSetLong(LemniAInt aint, const long si);
-void lemniAIntSetULong(LemniAInt aint, const unsigned long ui);
+void lemniAIntSetStr(LemniAInt aint, LemniStr str, const LemniNat16 base);
+void lemniAIntSetLong(LemniAInt aint, const LemniInt64 si);
+void lemniAIntSetULong(LemniAInt aint, const LemniNat64 ui);
 
 long lemniAIntToLong(LemniAIntConst aint);
 unsigned long lemniAIntToULong(LemniAIntConst aint);
@@ -77,16 +84,16 @@ namespace lemni{
 			explicit AInt(std::string_view str, const int base = 10) noexcept
 				: m_val(lemniCreateAIntStr(LemniStr{str.data(), str.size()}, base)){}
 
-			explicit AInt(const long si) noexcept
+			explicit AInt(const LemniInt64 si) noexcept
 				: m_val(lemniCreateAIntLong(si)){}
 
-			explicit AInt(const unsigned long ui) noexcept
+			explicit AInt(const LemniNat64 ui) noexcept
 				: m_val(lemniCreateAIntULong(ui)){}
 
-			explicit AInt(const int i) noexcept
+			explicit AInt(const LemniInt32 i) noexcept
 				: AInt(static_cast<long>(i)){}
 
-			explicit AInt(const unsigned int i) noexcept
+			explicit AInt(const LemniNat32 i) noexcept
 				: AInt(static_cast<unsigned long>(i)){}
 
 			AInt(const AInt &other) noexcept
@@ -106,6 +113,7 @@ namespace lemni{
 			}
 
 			AInt &operator =(AInt &&other){
+				if(m_val) lemniDestroyAInt(m_val);
 				m_val = other.m_val;
 				other.m_val = nullptr;
 				return *this;
@@ -222,5 +230,9 @@ namespace lemni{
 }
 #endif // !LEMNI_NO_CPP
 #endif // __cplusplus
+
+/**
+ * @}
+ */
 
 #endif // !LEMNI_AINT_H

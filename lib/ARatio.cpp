@@ -38,7 +38,7 @@ LemniARatio lemniCreateARatioCopy(LemniARatioConst other){
 	return p;
 }
 
-LemniARatio lemniCreateARatioStr(const LemniStr str, const int base){
+LemniARatio lemniCreateARatioStr(const LemniStr str, const LemniNat16 base){
 	auto p = createARatio();
 	std::string cstr(str.ptr, str.len);
 	mpq_init(p->val);
@@ -54,14 +54,14 @@ LemniARatio lemniCreateARatioAInt(LemniAIntConst num, LemniAIntConst den){
 	return p;
 }
 
-LemniARatio lemniCreateARatioLong(const long num, const unsigned long den){
+LemniARatio lemniCreateARatioLong(const LemniInt64 num, const LemniNat64 den){
 	auto p = createARatio();
 	mpq_init(p->val);
 	mpq_set_si(p->val, num, den);
 	return p;
 }
 
-LemniARatio lemniCreateARatioULong(const unsigned long num, const unsigned long den){
+LemniARatio lemniCreateARatioULong(const LemniNat64 num, const LemniNat64 den){
 	auto p = createARatio();
 	mpq_init(p->val);
 	mpq_set_ui(p->val, num, den);

@@ -11,6 +11,7 @@ llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 set(
 	LEMNI_LIB_SOURCES
+	Interop.cpp
 	lex.cpp
 	AInt.hpp
 	AInt.cpp
@@ -28,7 +29,9 @@ set(
 	TypedExpr.hpp
 	TypedExpr.cpp
 	typecheck.cpp
-	Interop.cpp
+	Region.hpp
+	Region.cpp
+	memcheck.cpp
 	Value.hpp
 	Value.cpp
 	Module.cpp
@@ -41,6 +44,8 @@ set(
 )
 
 add_library(lemni SHARED ${LEMNI_HEADERS} ${LEMNI_LIB_SOURCES})
+
+target_include_directories(lemni PUBLIC ${LEMNI_INCLUDE_DIR})
 
 target_include_directories(lemni PRIVATE ${GMP_INCLUDES} ${MPFR_INCLUDES} ${ARB_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
 

@@ -91,9 +91,9 @@ LemniExpr lemniBindingExprValue(LemniBindingExpr binding){ return binding->value
 LemniFnDefExpr lemniLValueExprAsFnDef(LemniLValueExpr expr){ return dynamic_cast<LemniFnDefExpr>(expr); }
 LemniLValueExpr lemniFnDefExprBase(LemniFnDefExpr fnDef){ return fnDef; }
 LemniStr lemniFnDefExprName(LemniFnDefExpr fnDef){ return LemniStr{fnDef->id.c_str(), fnDef->id.size()}; }
-uint32_t lemniFnDefExprNumParams(LemniFnDefExpr fnDef){ return static_cast<uint32_t>(fnDef->params.size()); }
-LemniExpr lemniFnDefExprParam(LemniFnDefExpr fnDef, const uint32_t idx){ return fnDef->params[idx]; }
-LemniExpr lemniFnDefExprBody(LemniFnDefExpr fnDef){ return fnDef->body; }
+uint32_t lemniFnDefExprNumParams(LemniFnDefExpr fnDef){ return static_cast<uint32_t>(fnDef->lambda->params.size()); }
+LemniExpr lemniFnDefExprParam(LemniFnDefExpr fnDef, const uint32_t idx){ return fnDef->lambda->params[idx]; }
+LemniExpr lemniFnDefExprBody(LemniFnDefExpr fnDef){ return fnDef->lambda->body; }
 
 LemniLambdaExpr lemniExprAsLambda(LemniExpr expr){ return dynamic_cast<LemniLambdaExpr>(expr); }
 LemniExpr lemniLambdaExprBase(LemniLambdaExpr lambda){ return lambda; }
